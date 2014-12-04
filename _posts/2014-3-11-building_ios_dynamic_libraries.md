@@ -5,7 +5,7 @@ title: Sharing LLDB debugging helpers between projects using a dynamic library
 
 Xcode 5 added [QuickLook support](https://developer.apple.com/library/mac/documentation/IDEs/Conceptual/CustomClassDisplay_in_QuickLook/Introduction/Introduction.html) for standard types like `UIImage`, `NSData` or `NSString`, right within Xcode. Starting with Xcode 5.1, `UIView` and custom types can be quickly previewed as well, which can be quite convenient when debugging projects. 
 
-![QuickLook](images/quick_look_xcode5.jpg)
+![QuickLook](/images/quick_look_xcode5.jpg)
 
 The [LLDB-QuickLook](https://github.com/ryanolsonk/LLDB-QuickLook) project adds a similar functionality to the LLDB Xcode console as well, but requires some categories to be added to each project you want to use LLDB-QuickLook with. This process is rather inconvenient since it requires you to edit your projects to make these categories somehow available (most probably by including the corresponding source files).
 
@@ -44,7 +44,7 @@ Restart Xcode to take the changes into account.
 
 To build a dynamic library we create a Mac OS X Cocoa Library project, setting its type to _dynamic_. We remove all useless stuff, set its SDK to _Latest iOS_ and add LLDB-QuickLook source files. The resulting project can be found on my [Github page](https://github.com/defagos/LLDB-QuickLook/tree/dylib), on a branch called `dylib`.
 
-![dylib creation](images/creating_dylib.jpg)
+![dylib creation](/images/creating_dylib.jpg)
 
 Checkout the repository, switch to the `dylib` branch and run the following command to build the library:
 
@@ -64,7 +64,7 @@ The `quick_look_load_sim` command can be manually triggered in LLDB to load the 
 
 To run the `quick_look_load_sim` command early when an application has been attached, add a user-defined symbolic breakpoint on a function which gets called early, e.g. `UIApplicationMain`. User-defined breakpoints are common to all you projects, and can trigger actions, like executing LLDB commands. To call our custom `quick_look_load_sim` command, add a _Debugger Command_ action calling `quick_look_load_sim` to the breakpoint, and check _Automatically continue after evaluating_.
 
-![Breakpoints](images/breakpoints.jpg)
+![Breakpoints](/images/breakpoints.jpg)
 
 There is hope pending breakpoints [might be added](http://prod.lists.apple.com/archives/xcode-users/2013/Feb/msg00069.html) to LLDB in the future, in which case this trick could be replaced with pending breakpoints defined in the `~/.lldbinit` file.
 
@@ -83,7 +83,7 @@ Now run any project in the simulator (be sure that the user-defined breakpoint i
 	
 QuickLook should open and display the string.
 
-![QuickLook example](images/lldb_quick_look_example.jpg)
+![QuickLook example](/images/lldb_quick_look_example.jpg)
 
 # Wrapping up
 
