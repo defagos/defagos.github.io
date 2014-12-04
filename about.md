@@ -4,12 +4,6 @@ title: About
 permalink: /about/
 ---
 
-Some information about you!
+I am an enthusiast iOS developer since 2010. When I have some free time, I try to contribute to the amazing iOS developer community through some open source projects, a few blog posts and conferences.
 
-### More Information
-
-A place to include any other types of information that you'd like to include about yourself. 
-
-### Contact me
-
-[email@domain.com](mailto:email@domain.com)
+You can contact me anytime on Twitter or reach me by mail.
