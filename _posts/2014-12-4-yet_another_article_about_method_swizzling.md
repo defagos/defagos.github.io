@@ -29,7 +29,7 @@ The function returns the original implementation, which must be properly cast an
 
 # Issues in class hierarchies
 
-When swizzling methods in class hierarchies, we must take extra care when the method we swizzle is not implemented by the class on which it is swizzled, but is implemented by one of its parents. For example, the `-awakeFromNib` method, declared and implemented at the `NSObject` level, is neither implemented by the `UIView` and `UILabel` subclasses. When calling this method on an instance of any of theses classes, it is therefore the `NSObject` implementation which gets called:
+When swizzling methods in class hierarchies, we must take extra care when the method we swizzle is not implemented by the class on which it is swizzled, but is implemented by one of its parents. For example, the `-awakeFromNib` method, declared and implemented at the `NSObject` level, is neither implemented by the `UIView` nor by the `UILabel` subclasses. When calling this method on an instance of any of theses classes, it is therefore the `NSObject` implementation which gets called:
 
 ![Standard hierarchy](/images/standard_hierarchy.png)
 
@@ -47,7 +47,7 @@ and, after swizzling:
 
 ![Tweaked hierarchy, swizzled](/images/tweaked_hierarchy_swizzled.png)
 
-No swizzling implementation I encountered correctly deals with this issue, [not even JRSwizzle](https://github.com/rentzsch/jrswizzle/issues/4). As should be clear from the last picture above, the solution to this problem is to ensure a method is always implemented by a class before swizzling it. If this is not the case, an implementation must be injected first, and calling the super method counterpart. This way, all implementations will correctly be called after swizzling.
+No swizzling implementation I encountered correctly deals with this issue, [not even JRSwizzle](https://github.com/rentzsch/jrswizzle/issues/4). As should be clear from the last picture above, the solution to this problem is to ensure a method is always implemented by a class before swizzling it. If this is not the case, an implementation must be injected first, simply calling the super method counterpart. This way, all implementations will correctly be called after swizzling.
 
 # Implementation
 
