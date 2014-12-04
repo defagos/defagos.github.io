@@ -30,21 +30,21 @@ when specifiying the new implementation. This also avoid issues if your swizzlin
 
 When swizzling methods in class hierarchies, we must take extra care when the method we swizzle is not implemented by the class on which it is swizzled, but is implemented by one of its parents. For example, the `-awakeFromNib` method, declared and implemented at the `NSObject` level, is neither implemented by the `UIView` and `UILabel` subclasses. When calling this method on an instance of any of theses classes, it is therefore the `NSObject` implementation which gets called:
 
-*image*
+![Standard hierarchy](/images/standard_hierarchy.png)
 
 If we naively swizzle the `-awakeFromNib` method both at the `UIView` and `UILabel` levels, we get the following result:
 
-*image*
+![Standard hierarchy, swizzled](/images/standard_hierarchy_swizzled.png)
 
 As we see, when `-[UILabel awakeFromNib]` is now called, the swizzled `UIView `implementation does not get called, which is not what is expected from proper swizzling.
 
 The situation would be completely different if the `-awakeFromNib` method was implemented on `UIView` and `UILabel`. If this was the case, and if each implementation properly called the `super` method counterpart first, we would namely obtain:
 
-*image*
+![Tweaked hierarchy](/images/tweaked_hierarchy.png)
 
 and, after swizzling:
 
-*image*
+![Tweaked hierarchy, swizzled](/images/tweaked_hierarchy_swizzled.png)
 
 No swizzling implementation I encountered correctly deals with this issue, [not even JRSwizzle](https://github.com/rentzsch/jrswizzle/issues/4). As should be clear from the last picture above, the solution to this problem is to ensure a method is always implemented by a class before swizzling it. If this is not the case, a dummy implementation must be injected first, only calling the super method counterpart. This way, all swizzled implementations will correctly be called.
 
