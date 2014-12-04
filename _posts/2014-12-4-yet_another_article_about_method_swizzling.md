@@ -11,20 +11,21 @@ The implementation discussed in this article may have issues of its own, but I d
 
 # Function prototype
 
-Since the Objective-C runtime is a series of functions, I decided to implement swizzling as a function as well. I made the following choices:
+Since the Objective-C runtime is a series of functions, I decided to implement swizzling as a function as well. Most existing implementations, for example the well-respected [JRSwizzle](https://github.com/rentzsch/jrswizzle), exchange `IMP`s associated with two selectors. Ultimately, though, method swizzling is about changing, not exchanging, which is why I prefer a function expecting an original `SEL` and an `IMP` arguments:
 
-* Most existing implementations, for example the well-respected [JRSwizzle](https://github.com/rentzsch/jrswizzle), exchange `IMP`s associated with two selectors. Ultimately, though, method swizzling is about changing, not exchanging, which is why I prefer a function expecting an original `SEL` and an `IMP` arguments:
+{% highlight objective-c %}
+IMP class_swizzleSelector(Class clazz, SEL selector, IMP newImplementation);
+{% endhighlight %} 
 
-  {% highlight objective-c %}
-  IMP class_swizzleSelector(Class clazz, SEL selector, IMP newImplementation);
-  {% endhighlight %}
 instead of two `SEL` arguments:
 
-  {% highlight objective-c %}
-  IMP class_swizzleSelectorWithSelector(Class clazz, SEL selector, SEL swizzlingSelector);
-  {% endhighlight %}
-when specifiying the new implementation. This also avoid issues if your swizzling selector name convention is the same as the one used elsewhere, especially when dealing with 3rd party code. Don't be too optimistic, accidental overriding due to [bad conventions](https://github.com/search?l=objective-c&q=%22%28void%29commonInit%22&ref=searchresults&type=Code&utf8=%E2%9C%93) can happen all the time.
-* The function returns the original implementation, which must be properly cast and called from within the swizzling method implementation so that the original behavior is preserved. If the method is not implemented, the function does nothing
+{% highlight objective-c %}
+IMP class_swizzleSelectorWithSelector(Class clazz, SEL selector, SEL swizzlingSelector); 
+{% endhighlight %}
+
+when specifiying the new implementation. This also avoid potential clashes if your swizzling selector name convention is the same as the one used elsewhere, especially when dealing with 3rd party code. Don't be too optimistic, accidental overriding due to [bad conventions](https://github.com/search?l=objective-c&q=%22%28void%29commonInit%22&ref=searchresults&type=Code&utf8=%E2%9C%93) can happen all the time.
+
+The function returns the original implementation, which must be properly cast and called from within the swizzling method implementation, so that the original behavior is preserved. If the method to swizzle is not implemented, the function does nothing.
 
 # Issues in class hierarchies
 
@@ -46,11 +47,11 @@ and, after swizzling:
 
 ![Tweaked hierarchy, swizzled](/images/tweaked_hierarchy_swizzled.png)
 
-No swizzling implementation I encountered correctly deals with this issue, [not even JRSwizzle](https://github.com/rentzsch/jrswizzle/issues/4). As should be clear from the last picture above, the solution to this problem is to ensure a method is always implemented by a class before swizzling it. If this is not the case, a dummy implementation must be injected first, only calling the super method counterpart. This way, all swizzled implementations will correctly be called.
+No swizzling implementation I encountered correctly deals with this issue, [not even JRSwizzle](https://github.com/rentzsch/jrswizzle/issues/4). As should be clear from the last picture above, the solution to this problem is to ensure a method is always implemented by a class before swizzling it. If this is not the case, an implementation must be injected first, and calling the super method counterpart. This way, all implementations will correctly be called after swizzling.
 
 # Implementation
 
-I implemented instance method swizzling as follows:
+I therefore implemented instance method swizzling as follows:
 
 {% highlight objective-c %}
 #import <objc/runtime.h>
@@ -64,7 +65,7 @@ IMP class_swizzleSelector(Class clazz, SEL selector, IMP newImplementation)
         return NULL;
     }
     
-    // Make sure the class implements the method. If this is not the case, inject an implementation, only calling 'super'
+    // Make sure the class implements the method. If this is not the case, inject an implementation, calling 'super'
     const char *types = method_getTypeEncoding(method);
     class_addMethod(clazz, selector, imp_implementationWithBlock(^(__unsafe_unretained id self, va_list argp) {
         struct objc_super super = {
@@ -91,11 +92,11 @@ IMP class_swizzleClassSelector(Class clazz, SEL selector, IMP newImplementation)
 
 The `imp_implementationWithBlock` function is used as a trampoline to accomodate any kind of method prototype through a variable argument list `va_list`. The `super` method call is made by properly casting `objc_msgSendSuper`, available from `<objc/message.h>`. In order to prevent ARC from inserting incorrect memory management calls, the `self` parameter of the implementation block has been marked with `__unsafe_unretained`.
 
-This implementation is available from [CoconutKit](https://github.com/defagos/CoconutKit) with other runtime additions.
+This implementation is available from [my CoconutKit library](https://github.com/defagos/CoconutKit) with other runtime additions.
 
 # Use
 
-Define a static C-function for the new implementation, call `class_swizzleSelector` or `class_swizzlClassSelector` to set it as new implementation. Save the original implementation into a function pointer matching the function signature, and make sure the new implementation calls it:
+Define a static C-function for the new implementation and call `class_swizzleSelector` or `class_swizzlClassSelector` to set it as new implementation. Save the original implementation into a function pointer matching the function signature, and make sure the new implementation calls it somehow:
 
 {% highlight objective-c %}
 static id (*initWithFrame)(id, SEL, CGRect) = NULL;
@@ -136,4 +137,4 @@ static void swizzle_dealloc(__unsafe_unretained UILabel *self, SEL _cmd)
 @end
 {% endhighlight %} 
 
-Note that I added an extra `__unsafe_unretained` specifier to the `swizzle_dealloc` prototype to ensure ARC does not insert additional memory management calls.
+Note that I added an extra `__unsafe_unretained` specifier to the `swizzle_dealloc` prototype to ensure ARC does not insert additional memory management calls. I also cheated by getting the `dealloc` selector with `sel_getUid`, since `@selector(dealloc)` cannot be used with ARC.
