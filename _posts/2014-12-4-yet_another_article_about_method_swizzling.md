@@ -23,7 +23,7 @@ instead of two `SEL` arguments:
 IMP class_swizzleSelectorWithSelector(Class clazz, SEL selector, SEL swizzlingSelector); 
 {% endhighlight %}
 
-when specifiying the new implementation. This also avoid potential clashes if your swizzling selector name convention is the same as the one used elsewhere, especially when dealing with 3rd party code. Don't be too optimistic, accidental overriding due to [bad conventions](https://github.com/search?l=objective-c&q=%22%28void%29commonInit%22&ref=searchresults&type=Code&utf8=%E2%9C%93) can happen all the time.
+This also avoid potential clashes if your swizzling selector name convention is the same as the one used elsewhere, especially when dealing with 3rd party code. Don't be too optimistic, accidental overriding due to [bad conventions](https://github.com/search?l=objective-c&q=%22%28void%29commonInit%22&ref=searchresults&type=Code&utf8=%E2%9C%93) can happen all the time.
 
 The function returns the original implementation, which must be properly cast and called from within the swizzling method implementation, so that the original behavior is preserved. If the method to swizzle is not implemented, the function does nothing.
 
