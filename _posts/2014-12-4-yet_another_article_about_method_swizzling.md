@@ -1,5 +1,7 @@
-Yet another article about method swizzling
-==========================================
+---
+layout: post
+title: Yet another article about method swizzling
+---
 
 Many Objective-C developers disregard method swizzling, considering it a bad practice. I don't like method swizzling, I love it. Of course it is risky and can hurt you like a bullet. Carefully done, though, it makes it possible to fill annoying gaps in system frameworks which would be impossible to fill otherwise. From simply providing a convenient way to [track the parent popover controller of a view controller](https://github.com/defagos/CoconutKit/blob/03c18648ce76a822e519e34b0fea6f66b6eb370e/CoconutKit/Sources/ViewControllers/UIPopoverController+HLSExtensions.m#L16-L78) to implementing [Cocoa-like bindings on iOS](https://github.com/defagos/CoconutKit/blob/03c18648ce76a822e519e34b0fea6f66b6eb370e/CoconutKit/Sources/Bindings/UIView+HLSViewBinding.m#L239-L257), method swizzling has always been an invaluable tool to me.
 
