@@ -129,9 +129,9 @@ static void swizzle_dealloc(__unsafe_unretained UILabel *self, SEL _cmd)
 
 + (void)load
 {
-    initWithFrame = (typeof(initWithFrame))class_swizzleSelector(self, @selector(initWithFrame:), (IMP)swizzle_initWithFrame);
-    awakeFromNib = (typeof(awakeFromNib))class_swizzleSelector(self, @selector(awakeFromNib), (IMP)swizzle_awakeFromNib);
-    dealloc = (typeof(dealloc))class_swizzleSelector(self, sel_getUid("dealloc"), (IMP)swizzle_dealloc);
+    initWithFrame = (__typeof(initWithFrame))class_swizzleSelector(self, @selector(initWithFrame:), (IMP)swizzle_initWithFrame);
+    awakeFromNib = (__typeof(awakeFromNib))class_swizzleSelector(self, @selector(awakeFromNib), (IMP)swizzle_awakeFromNib);
+    dealloc = (__typeof(dealloc))class_swizzleSelector(self, sel_getUid("dealloc"), (IMP)swizzle_dealloc);
 }
 
 @end
