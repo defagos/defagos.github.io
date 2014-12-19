@@ -362,7 +362,7 @@ respectively:
     SwizzleSelectorWithBlock_Begin(self, @selector(initWithFrame:))
     ^(UILabel *self, CGRect frame) {
         if ((self = ((id (*)(id, SEL, CGRect))_imp)(self, _cmd, frame))) {
-            NSLog(@"Swizzled initWithFrame:");
+            // ...
         }
         return self;
     }
@@ -371,13 +371,15 @@ respectively:
     SwizzleSelectorWithBlock_Begin(self, @selector(awakeFromNib))
     ^(UILabel *self) {
         ((void (*)(id, SEL))_imp)(self, _cmd);
-        NSLog(@"Swizzled awakeFromNib");
+        
+        // ...
     }
     SwizzleSelectorWithBlock_End;
 
     SwizzleSelectorWithBlock_Begin(self, sel_getUid("dealloc"))
     ^(__unsafe_unretained UILabel *self) {
-        NSLog(@"Swizzled dealloc");
+        // ...
+        
         ((void (*)(id, SEL))_imp)(self, _cmd);
     }
     SwizzleSelectorWithBlock_End;
