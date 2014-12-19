@@ -139,7 +139,7 @@ IMP class_swizzleSelector_stret(Class clazz, SEL selector, IMP newImplementation
 
 # Wrapping up: IMP-swizzling
 
-Having a separate `class_swizzleSelector_stret` function which must appropriately be called when large strucs are returned is rather inconvenient. Fortunately, its implementation can be merged into `class_swizzleSelector` by checking return type size information for 32-bit architectures first. We obtain a single function for method swizzling with an `IMP`:
+Having a separate `class_swizzleSelector_stret` function which must appropriately be called when large structs are returned is rather inconvenient. Fortunately, its implementation can be merged into `class_swizzleSelector` by checking return type size information for 32-bit architectures first. We obtain a single function for method swizzling with an `IMP`:
 
 {% highlight objective-c %}
 #import <objc/runtime.h>
