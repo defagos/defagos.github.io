@@ -3,7 +3,7 @@ layout: post
 title: Yet another article about method swizzling
 ---
 
-Many Objective-C developers disregard method swizzling, considering it a bad practice. I don't like method swizzling, I love it. Of course it is risky and can hurt you like a bullet. Carefully done, though, it makes it possible to fill annoying gaps in system frameworks which would be impossible to fill otherwise. From simply providing a convenient way to [track the parent popover controller of a view controller](https://github.com/defagos/CoconutKit/blob/b7bb8e336144d76a1055c8d5572ea8a3dafbfa5e/CoconutKit/Sources/ViewControllers/UIPopoverController+HLSExtensions.m#L16-L74) to implementing [Cocoa-like bindings on iOS](https://github.com/defagos/CoconutKit/blob/b7bb8e336144d76a1055c8d5572ea8a3dafbfa5e/CoconutKit/Sources/Bindings/UIView+HLSViewBinding.m#L237-L255), method swizzling has always been an invaluable tool to me.
+Many Objective-C developers disregard method swizzling, considering it a bad practice. I don't like method swizzling, I love it. Of course it is risky and can hurt you like a bullet. Carefully done, though, it makes it possible to fill annoying gaps in system frameworks which would be impossible to fill otherwise. From simply providing a convenient way to [track the parent popover controller of a view controller](https://github.com/defagos/CoconutKit/blob/f6d8d3486a2a201d0cda4657e681c3d56cf7a261/CoconutKit/Sources/ViewControllers/UIPopoverController+HLSExtensions.m#L16-L74) to implementing [Cocoa-like bindings on iOS](https://github.com/defagos/CoconutKit/blob/f6d8d3486a2a201d0cda4657e681c3d56cf7a261/CoconutKit/Sources/Bindings/UIView+HLSViewBinding.m#L237-L255), method swizzling has always been an invaluable tool to me.
 
 Implementing swizzling correctly is not easy, though, probably because it looks straightforward at first (all is needed is a few Objective-C runtime function calls, after all). Though the Web is [crawling with articles](https://www.google.ch/webhp?sourceid=chrome-instant&ion=1&espv=2&ie=UTF-8#q=objective-c%20swizzling%20right) about the right way to swizzle a method, I sadly found issues with all of them.
 
@@ -23,9 +23,9 @@ instead of two `SEL` arguments:
 IMP class_swizzleSelectorWithSelector(Class clazz, SEL selector, SEL swizzlingSelector); 
 {% endhighlight %}
 
-This also avoid potential clashes if your swizzling selector name convention is the same as the one used elsewhere, especially when dealing with 3rd party code. Don't be too optimistic, accidental overriding due to [bad conventions](https://github.com/search?l=objective-c&q=%22%28void%29commonInit%22&ref=searchresults&type=Code&utf8=%E2%9C%93) can happen all the time.
+Moreover, using an `IMP` (in other words a C-function) instead of a selector implementation avoids potential clashes if your swizzling selector name convention happens to be the same as the one used elsewhere, especially when dealing with 3rd party code. Don't be too optimistic, accidental method overriding due to [bad conventions](https://github.com/search?l=objective-c&q=%22%28void%29commonInit%22&ref=searchresults&type=Code&utf8=%E2%9C%93) can happen all the time.
 
-The function returns the original implementation, which must be properly cast and called from within the swizzling method implementation, so that the original behavior is preserved. If the method to swizzle is not implemented, the function does nothing.
+The function above returns the original implementation, which must be properly cast and called from within the swizzling method implementation, so that the original behavior is preserved. If the method to swizzle is not implemented, I decided the function must do nothing and return `NULL`.
 
 # Issues in class hierarchies
 
@@ -51,7 +51,7 @@ No swizzling implementation I encountered correctly deals with this issue, [not 
 
 # First implementation attempt
 
-I first implemented instance method swizzling as follows:
+Based on the above, I first implemented instance method swizzling as follows:
 
 {% highlight objective-c %}
 #import <objc/runtime.h>
@@ -94,11 +94,13 @@ The `imp_implementationWithBlock` function is used as a trampoline to accomodate
 
 # Large struct return values
 
-As pointed out by [Peter Steinberger](https://twitter.com/steipete/status/540818091014627329) and [@__block](https://twitter.com/__block/status/540794469046812674) on Twitter, struct returns require special care on some architectures. Usually, method calls are namely funnelled through the `objc_msgSend` function, returning the result in a register. For large structs which cannot fit in a register, though, the compiler might generate a call to the special `objc_msgSend_stret` function, which returns the parameter on the stack instead. According to the [ABI](https://developer.apple.com/library/mac/documentation/DeveloperTools/Conceptual/LowLevelABI/000-Introduction/introduction.html), this happens on 32-bit architectures for types whose size is neither 1, 2, 4 nor 8.
+As pointed out by [Peter Steinberger](https://twitter.com/steipete/status/540818091014627329) and [@__block](https://twitter.com/__block/status/540794469046812674) on Twitter, struct returns require special care on some architectures.
 
-The implementation above does not account for this special case and must be fixed. For method returning large structs, we need the `imp_implementationWithBlock` function to generate the correct implementation by having the block return a large struct. The kind of struct and its layout are irrelevant, we only need it to be sufficiently large. As for `objc_msgSend_stret`, there is an `objc_msgSendSuper_stret` for super calls to methods returning large structs, which we need to use instead. 
+Most method calls are funnelled through the `objc_msgSend` function, returning the result in a register. For large structs which cannot fit in a register, though, the compiler might generate a call to the special `objc_msgSend_stret` function, which returns the parameter on the stack instead. According to the [ABI](https://developer.apple.com/library/mac/documentation/DeveloperTools/Conceptual/LowLevelABI/000-Introduction/introduction.html), this happens on 32-bit architectures for types whose size is neither 1, 2, 4 nor 8. The implementation above does not account for this special case and must therefore be changed to account for such cases. 
 
-For large struct returns, instead of calling the `class_swizzleSelector` function above, we therefore must call the `class_swizzleSelector_stret` function instead:
+For method returning large structs, we need the `imp_implementationWithBlock` function to generate the correct implementation by having the block return a large struct. The kind of struct and its layout are irrelevant, we only need it to be sufficiently large so that the compiler can make the right decision. As for `objc_msgSend_stret`, there is an `objc_msgSendSuper_stret` for super calls to methods returning large structs, which we need to use instead. 
+
+For large struct returns, instead of calling the `class_swizzleSelector` function above, we therefore must call the following `class_swizzleSelector_stret` function:
 
 {% highlight objective-c %}
 #import <objc/runtime.h>
@@ -135,11 +137,14 @@ IMP class_swizzleSelector_stret(Class clazz, SEL selector, IMP newImplementation
 }
 {% endhighlight %}
 
-# Common implementation
+# Wrapping up: IMP-swizzling
 
-Having a separate `class_swizzleSelector_stret` function is rather inconvenient. Fortunately, its implementation can be merged into `class_swizzleSelector` by checking return type size information for 32-bit architectures first:
+Having a separate `class_swizzleSelector_stret` function which must appropriately be called when large strucs are returned is rather inconvenient. Fortunately, its implementation can be merged into `class_swizzleSelector` by checking return type size information for 32-bit architectures first. We obtain a single function for method swizzling with an `IMP`:
 
 {% highlight objective-c %}
+#import <objc/runtime.h>
+#import <objc/message.h>
+
 IMP class_swizzleSelector(Class clazz, SEL selector, IMP newImplementation)
 {
     // If the method does not exist for this class, do nothing
@@ -157,7 +162,7 @@ IMP class_swizzleSelector(Class clazz, SEL selector, IMP newImplementation)
     NSGetSizeAndAlignment(types, &returnSize, NULL);
     
     // Large structs on 32-bit architectures
-    if (sizeof(void *) != 8 && types[0] == _C_STRUCT_B && returnSize != 1 && returnSize != 2 && returnSize != 4 && returnSize != 8) {
+    if (sizeof(void *) == 4 && types[0] == _C_STRUCT_B && returnSize != 1 && returnSize != 2 && returnSize != 4 && returnSize != 8) {
         class_addMethod(clazz, selector, imp_implementationWithBlock(^(__unsafe_unretained id self, va_list argp) {
             struct objc_super super = {
                 .receiver = self,
@@ -198,9 +203,9 @@ IMP class_swizzleSelector(Class clazz, SEL selector, IMP newImplementation)
 
 The `_stret` variants are not available on ARM 64, thus the extra preprocessor adornments.
 
-## Usage
+## Example of use
 
-Define a static C-function for the new implementation and call `class_swizzleSelector` or `class_swizzleClassSelector` to set it as new implementation. Save the original implementation into a function pointer matching the function signature, and make sure the new implementation calls it somehow:
+To swizzle a method, define a static C-function for the new implementation and call `class_swizzleSelector` or `class_swizzleClassSelector` to set it as new one. Save the original implementation into a function pointer matching the function signature, and make sure the new implementation calls it somehow:
 
 {% highlight objective-c %}
 static id (*initWithFrame)(id, SEL, CGRect) = NULL;
@@ -243,7 +248,7 @@ static void swizzle_dealloc(__unsafe_unretained UILabel *self, SEL _cmd)
 
 Note that I added an extra `__unsafe_unretained` specifier to the `swizzle_dealloc` prototype to ensure ARC does not insert additional memory management calls. I also cheated by getting the `dealloc` selector with `sel_getUid`, since `@selector(dealloc)` cannot be used with ARC.
 
-# Swizzling with blocks
+# Block-swizzling
 
 Thanks to `imp_implementationWithBlock`, we can provide a block instead of an `IMP` for the new implementation:
 
@@ -261,9 +266,9 @@ IMP class_swizzleClassSelectorWithBlock(Class clazz, SEL selector, id newImpleme
 }
 {% endhighlight %} 
 
-The block signature itself does not include the selector parameter, as specified in the `imp_implementationWithBlock` documentation.
+The block signature itself does not include the selector parameter, as specified in the `imp_implementationWithBlock` [documentation](https://developer.apple.com/library/mac/documentation/Cocoa/Reference/ObjCRuntimeRef/index.html).
 
-## Usage
+## Example of use
 
 The above example can be rewritten using blocks, eliminating the need for static methods and function pointers:
 
@@ -299,7 +304,7 @@ Returned original implementations must be saved into `__block` variables to be a
 
 # Macros
 
-Macros can be defined to provide to make swizzling code even more compact:
+Some redundancy is found in both examples of use above, but can be eliminated by defining a few convenience macros:
 
 {% highlight objective-c %}
 #define SwizzleSelector(clazz, selector, newImplementation, pPreviousImplementation) \
@@ -319,17 +324,23 @@ Macros can be defined to provide to make swizzling code even more compact:
 #define SwizzleClassSelectorWithBlock_End );}
 {% endhighlight %} 
 
-Note that block swizzling is made using a pair of macros. This avoids blocks parameters, which do not work so well with macros:
+To emphasize that the `IMP`-swizzling macros set the new implementation variable, the corresponding macro parameter needs to be adorned with an ampersand. 
 
-* Macro expansion of a block turns it into a single line, confusing the debugger
-* The block can contain commas, confusing identification of macro arguments. This can be circumvented by enclosing the block within parentheses, though I find it ugly
+Block-swizzling, on the other hand, has been turned into a pair of macros. This avoids block parameters, which do not work well with macros:
 
-## Usage
+* Macro expansion of a block turns the block implementation into a single line, confusing the debugger
+* A block can contain commas, preventing correct macro argument detection (this can be avoided by enclosing the blocks within parentheses, though)
+
+Moreover, the block-swizzling macros declare a hidden scope where the selector `_cmd` and original implementation `_imp` are immediately available.
+
+## Example of use
 
 The two previous examples can now be rewritten as follows:
 
 {% highlight objective-c %}
 @implementation UILabel (SwizzlingExamples)
+
+// Function pointers and static functions, as defined above
 
 + (void)load
 {
@@ -341,7 +352,7 @@ The two previous examples can now be rewritten as follows:
 @end
 {% endhighlight %} 
 
-and
+respectively:
 
 {% highlight objective-c %}
 @implementation UILabel (SwizzlingExamples)
@@ -375,6 +386,8 @@ and
 @end
 {% endhighlight %} 
 
-# Wrapping up
+I especially like the compactness of block-swizzling using macros. There is no need to define separate functions and method pointers, and the swizzled method implementation can be easily recognized, enclosed between the `Begin` and `End` macros.
 
-This implementation is available from [CoconutKit](https://github.com/defagos/CoconutKit) with other runtime additions.
+# Conclusion
+
+The implementation discussed in this article might not be optimal, but should cover most practical cases. It is available from my [CoconutKit framework](https://github.com/defagos/CoconutKit), with a comprehensive [test suite](https://github.com/defagos/CoconutKit/blob/f6d8d3486a2a201d0cda4657e681c3d56cf7a261/CoconutKit-tests/Sources/Core/HLSRuntimeTestCase.m#L1277-L1370), or from the following [gist](https://gist.github.com/defagos/1312fec96b48540efa5c). Have fun with method swizzling!
