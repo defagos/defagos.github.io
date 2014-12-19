@@ -94,9 +94,11 @@ The `imp_implementationWithBlock` function is used as a trampoline to accomodate
 
 # Large struct return values
 
-As pointed out by Peter Steinberger and @__block on Twitter, struct returns require special care on some architectures. Usually, method calls are namely funnelled through the `objc_msgSend` function, returning the result in a register. For large structs which cannot fit in a register, though, the compiler might generate a call to the special `objc_msgSend_stret` function, which returns the parameter on the stack instead. According to the ABI, this process happens on 32-bit architectures for types whose size is neither 1, 2, 4 nor 8.
+As pointed out by [Peter Steinberger](https://twitter.com/steipete/status/540818091014627329) and [@__block](https://twitter.com/__block/status/540794469046812674) on Twitter, struct returns require special care on some architectures. Usually, method calls are namely funnelled through the `objc_msgSend` function, returning the result in a register. For large structs which cannot fit in a register, though, the compiler might generate a call to the special `objc_msgSend_stret` function, which returns the parameter on the stack instead. According to the [ABI](https://developer.apple.com/library/mac/documentation/DeveloperTools/Conceptual/LowLevelABI/000-Introduction/introduction.html), this happens on 32-bit architectures for types whose size is neither 1, 2, 4 nor 8.
 
-The implementation above does not account for such special cases and must be fixed. For method returning large structs, we need the `imp_implementationWithBlock` function to generate the correct implementation by having the block return a large struct. The kind of struct and its layout are irrelevant, we only need it to be sufficiently large. As for `objc_msgSend_stret`, there is an `objc_msgSendSuper_stret` for super calls to methods returning large structs, which we need to use instead. For large struct returns, and instead of calling the `class_swizzleSelector` function above, we must use the following `class_swizzleSelector_stret` function instead:
+The implementation above does not account for this special case and must be fixed. For method returning large structs, we need the `imp_implementationWithBlock` function to generate the correct implementation by having the block return a large struct. The kind of struct and its layout are irrelevant, we only need it to be sufficiently large. As for `objc_msgSend_stret`, there is an `objc_msgSendSuper_stret` for super calls to methods returning large structs, which we need to use instead. 
+
+For large struct returns, instead of calling the `class_swizzleSelector` function above, we therefore must call the `class_swizzleSelector_stret` function instead:
 
 {% highlight objective-c %}
 #import <objc/runtime.h>
@@ -133,9 +135,9 @@ IMP class_swizzleSelector_stret(Class clazz, SEL selector, IMP newImplementation
 }
 {% endhighlight %}
 
-# Final implementation
+# Common implementation
 
-Having a separate `class_swizzleSelector_stret` function is rather inconvenient. Fortunately, its implementation can be merged into `class_swizzleSelector` by checking size information for 32-bit architectures first:
+Having a separate `class_swizzleSelector_stret` function is rather inconvenient. Fortunately, its implementation can be merged into `class_swizzleSelector` by checking return type size information for 32-bit architectures first:
 
 {% highlight objective-c %}
 IMP class_swizzleSelector(Class clazz, SEL selector, IMP newImplementation)
@@ -290,14 +292,14 @@ The above example can be rewritten using blocks, eliminating the need for static
     });
 }
 
-Returned original implementations must be saved into `__block` variables to be accessible from within the corresponding implementation blocks.
-
 @end
 {% endhighlight %} 
 
+Returned original implementations must be saved into `__block` variables to be accessible from within the corresponding implementation blocks.
+
 # Macros
 
-Macros can be defined to provide more compact swizzling:
+Macros can be defined to provide to make swizzling code even more compact:
 
 {% highlight objective-c %}
 #define SwizzleSelector(clazz, selector, newImplementation, pPreviousImplementation) \
@@ -317,10 +319,10 @@ Macros can be defined to provide more compact swizzling:
 #define SwizzleClassSelectorWithBlock_End );}
 {% endhighlight %} 
 
-Macros for block swizzling work in pair to avoid having a block macro parameter:
+Note that block swizzling is made using a pair of macros. This avoids blocks parameters, which do not work so well with macros:
 
 * Macro expansion of a block turns it into a single line, confusing the debugger
-* The block can contain commas, confusing identification of macro arguments
+* The block can contain commas, confusing identification of macro arguments. This can be circumvented by enclosing the block within parentheses, though I find it ugly
 
 ## Usage
 
