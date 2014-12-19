@@ -3,7 +3,7 @@ layout: post
 title: Yet another article about method swizzling
 ---
 
-Many Objective-C developers disregard method swizzling, considering it a bad practice. I don't like method swizzling, I love it. Of course it is risky and can hurt you like a bullet. Carefully done, though, it makes it possible to fill annoying gaps in system frameworks which would be impossible to fill otherwise. From simply providing a convenient way to [track the parent popover controller of a view controller](https://github.com/defagos/CoconutKit/blob/03c18648ce76a822e519e34b0fea6f66b6eb370e/CoconutKit/Sources/ViewControllers/UIPopoverController+HLSExtensions.m#L16-L78) to implementing [Cocoa-like bindings on iOS](https://github.com/defagos/CoconutKit/blob/03c18648ce76a822e519e34b0fea6f66b6eb370e/CoconutKit/Sources/Bindings/UIView+HLSViewBinding.m#L239-L257), method swizzling has always been an invaluable tool to me.
+Many Objective-C developers disregard method swizzling, considering it a bad practice. I don't like method swizzling, I love it. Of course it is risky and can hurt you like a bullet. Carefully done, though, it makes it possible to fill annoying gaps in system frameworks which would be impossible to fill otherwise. From simply providing a convenient way to [track the parent popover controller of a view controller](https://github.com/defagos/CoconutKit/blob/b7bb8e336144d76a1055c8d5572ea8a3dafbfa5e/CoconutKit/Sources/ViewControllers/UIPopoverController+HLSExtensions.m#L16-L74) to implementing [Cocoa-like bindings on iOS](https://github.com/defagos/CoconutKit/blob/b7bb8e336144d76a1055c8d5572ea8a3dafbfa5e/CoconutKit/Sources/Bindings/UIView+HLSViewBinding.m#L237-L255), method swizzling has always been an invaluable tool to me.
 
 Implementing swizzling correctly is not easy, though, probably because it looks straightforward at first (all is needed is a few Objective-C runtime function calls, after all). Though the Web is [crawling with articles](https://www.google.ch/webhp?sourceid=chrome-instant&ion=1&espv=2&ie=UTF-8#q=objective-c%20swizzling%20right) about the right way to swizzle a method, I sadly found issues with all of them.
 
@@ -49,9 +49,9 @@ and, after swizzling:
 
 No swizzling implementation I encountered correctly deals with this issue, [not even JRSwizzle](https://github.com/rentzsch/jrswizzle/issues/4). As should be clear from the last picture above, the solution to this problem is to ensure a method is always implemented by a class before swizzling it. If this is not the case, an implementation must be injected first, simply calling the super method counterpart. This way, all implementations will correctly be called after swizzling.
 
-# Implementation
+# First implementation attempt
 
-I therefore implemented instance method swizzling as follows:
+I first implemented instance method swizzling as follows:
 
 {% highlight objective-c %}
 #import <objc/runtime.h>
@@ -92,11 +92,113 @@ IMP class_swizzleClassSelector(Class clazz, SEL selector, IMP newImplementation)
 
 The `imp_implementationWithBlock` function is used as a trampoline to accomodate any kind of method prototype through a variable argument list `va_list`. The `super` method call is made by properly casting `objc_msgSendSuper`, available from `<objc/message.h>`. In order to prevent ARC from inserting incorrect memory management calls, the `self` parameter of the implementation block has been marked with `__unsafe_unretained`.
 
-This implementation is available from [my CoconutKit library](https://github.com/defagos/CoconutKit) with other runtime additions.
+# Large struct return values
 
-# Use
+As pointed out by Peter Steinberger and @__block on Twitter, struct returns require special care on some architectures. Usually, method calls are namely funnelled through the `objc_msgSend` function, returning the result in a register. For large structs which cannot fit in a register, though, the compiler might generate a call to the special `objc_msgSend_stret` function, which returns the parameter on the stack instead. According to the ABI, this process happens on 32-bit architectures for types whose size is neither 1, 2, 4 nor 8.
 
-Define a static C-function for the new implementation and call `class_swizzleSelector` or `class_swizzlClassSelector` to set it as new implementation. Save the original implementation into a function pointer matching the function signature, and make sure the new implementation calls it somehow:
+The implementation above does not account for such special cases and must be fixed. For method returning large structs, we need the `imp_implementationWithBlock` function to generate the correct implementation by having the block return a large struct. The kind of struct and its layout are irrelevant, we only need it to be sufficiently large. As for `objc_msgSend_stret`, there is an `objc_msgSendSuper_stret` for super calls to methods returning large structs, which we need to use instead. For large struct returns, and instead of calling the `class_swizzleSelector` function above, we must use the following `class_swizzleSelector_stret` function instead:
+
+{% highlight objective-c %}
+#import <objc/runtime.h>
+#import <objc/message.h>
+
+IMP class_swizzleSelector_stret(Class clazz, SEL selector, IMP newImplementation)
+{
+    // If the method does not exist for this class, do nothing
+    Method method = class_getInstanceMethod(clazz, selector);
+    if (! method) {
+        return NULL;
+    }
+    
+    // Make sure the class implements the method. If this is not the case, inject an implementation, only calling 'super'
+    const char *types = method_getTypeEncoding(method);
+    class_addMethod(clazz, selector, imp_implementationWithBlock(^(__unsafe_unretained id self, va_list argp) {
+        struct objc_super super = {
+            .receiver = self,
+            .super_class = class_getSuperclass(clazz)
+        };
+        
+        // Sufficiently large struct
+        typedef struct LargeStruct_ {
+            char dummy[16];
+        } LargeStruct;
+        
+        // Cast the call to objc_msgSendSuper_stret appropriately
+        LargeStruct (*objc_msgSendSuper_stret_typed)(struct objc_super *, SEL, va_list) = (void *)&objc_msgSendSuper_stret;
+        return objc_msgSendSuper_stret_typed(&super, selector, argp);
+    }), types);
+    
+    // Can now safely swizzle
+    return class_replaceMethod(clazz, selector, newImplementation, types);
+}
+{% endhighlight %}
+
+# Final implementation
+
+Having a separate `class_swizzleSelector_stret` function is rather inconvenient. Fortunately, its implementation can be merged into `class_swizzleSelector` by checking size information for 32-bit architectures first:
+
+{% highlight objective-c %}
+IMP class_swizzleSelector(Class clazz, SEL selector, IMP newImplementation)
+{
+    // If the method does not exist for this class, do nothing
+    Method method = class_getInstanceMethod(clazz, selector);
+    if (! method) {
+        // Cannot swizzle methods which are not implemented by the class or one of its parents
+        return NULL;
+    }
+    
+    // Make sure the class implements the method. If this is not the case, inject an implementation, only calling 'super'
+    const char *types = method_getTypeEncoding(method);
+    
+#if !defined(__arm64__)
+    NSUInteger returnSize = 0;
+    NSGetSizeAndAlignment(types, &returnSize, NULL);
+    
+    // Large structs on 32-bit architectures
+    if (sizeof(void *) != 8 && types[0] == _C_STRUCT_B && returnSize != 1 && returnSize != 2 && returnSize != 4 && returnSize != 8) {
+        class_addMethod(clazz, selector, imp_implementationWithBlock(^(__unsafe_unretained id self, va_list argp) {
+            struct objc_super super = {
+                .receiver = self,
+                .super_class = class_getSuperclass(clazz)
+            };
+            
+            // Sufficiently large struct
+            typedef struct LargeStruct_ {
+                char dummy[16];
+            } LargeStruct;
+            
+            // Cast the call to objc_msgSendSuper_stret appropriately
+            LargeStruct (*objc_msgSendSuper_stret_typed)(struct objc_super *, SEL, va_list) = (void *)&objc_msgSendSuper_stret;
+            return objc_msgSendSuper_stret_typed(&super, selector, argp);
+        }), types);
+    }
+    // All other cases
+    else {
+#endif
+        class_addMethod(clazz, selector, imp_implementationWithBlock(^(__unsafe_unretained id self, va_list argp) {
+            struct objc_super super = {
+                .receiver = self,
+                .super_class = class_getSuperclass(clazz)
+            };
+            
+            // Cast the call to objc_msgSendSuper appropriately
+            id (*objc_msgSendSuper_typed)(struct objc_super *, SEL, va_list) = (void *)&objc_msgSendSuper;
+            return objc_msgSendSuper_typed(&super, selector, argp);
+        }), types);
+#if !defined(__arm64__)
+    }
+#endif
+    
+    // Swizzling
+    return class_replaceMethod(clazz, selector, newImplementation, types);
+}
+{% endhighlight %} 
+
+The `_stret` variants are not available on ARM 64, thus the extra preprocessor adornments.
+
+## Usage
+
+Define a static C-function for the new implementation and call `class_swizzleSelector` or `class_swizzleClassSelector` to set it as new implementation. Save the original implementation into a function pointer matching the function signature, and make sure the new implementation calls it somehow:
 
 {% highlight objective-c %}
 static id (*initWithFrame)(id, SEL, CGRect) = NULL;
@@ -138,3 +240,139 @@ static void swizzle_dealloc(__unsafe_unretained UILabel *self, SEL _cmd)
 {% endhighlight %} 
 
 Note that I added an extra `__unsafe_unretained` specifier to the `swizzle_dealloc` prototype to ensure ARC does not insert additional memory management calls. I also cheated by getting the `dealloc` selector with `sel_getUid`, since `@selector(dealloc)` cannot be used with ARC.
+
+# Swizzling with blocks
+
+Thanks to `imp_implementationWithBlock`, we can provide a block instead of an `IMP` for the new implementation:
+
+{% highlight objective-c %}
+IMP class_swizzleSelectorWithBlock(Class clazz, SEL selector, id newImplementationBlock)
+{
+    IMP newImplementation = imp_implementationWithBlock(newImplementationBlock);
+    return class_swizzleSelector(clazz, selector, newImplementation);
+}
+
+IMP class_swizzleClassSelectorWithBlock(Class clazz, SEL selector, id newImplementationBlock)
+{
+    IMP newImplementation = imp_implementationWithBlock(newImplementationBlock);
+    return class_swizzleClassSelector(clazz, selector, newImplementation);
+}
+{% endhighlight %} 
+
+The block signature itself does not include the selector parameter, as specified in the `imp_implementationWithBlock` documentation.
+
+## Usage
+
+The above example can be rewritten using blocks, eliminating the need for static methods and function pointers:
+
+{% highlight objective-c %}
+@implementation UILabel (SwizzlingExamples)
+
++ (void)load
+{
+    __block IMP originalInitWithFrame = class_swizzleSelectorWithBlock(self, @selector(initWithFrame:), ^(UILabel *self, CGRect frame) {
+        if ((self = ((id (*)(id, SEL, CGRect))originalInitWithFrame)(self, @selector(initWithFrame:), frame))) {
+            // ...
+        }
+        return self;
+    });
+    
+    __block IMP originalAwakeFromNib = class_swizzleSelectorWithBlock(self, @selector(awakeFromNib), ^(UILabel *self) {
+        ((void (*)(id, SEL))originalAwakeFromNib)(self, @selector(awakeFromNib));
+        
+        // ...
+    });
+    
+    __block IMP originalDealloc = class_swizzleSelectorWithBlock(self, sel_getUid("dealloc"), ^(__unsafe_unretained UILabel *self) {
+        // ...
+
+        ((void (*)(id, SEL))originalDealloc)(self, sel_getUid("dealloc"));
+    });
+}
+
+Returned original implementations must be saved into `__block` variables to be accessible from within the corresponding implementation blocks.
+
+@end
+{% endhighlight %} 
+
+# Macros
+
+Macros can be defined to provide more compact swizzling:
+
+{% highlight objective-c %}
+#define SwizzleSelector(clazz, selector, newImplementation, pPreviousImplementation) \
+    (*pPreviousImplementation) = (__typeof((*pPreviousImplementation)))class_swizzleSelector((clazz), (selector), (IMP)(newImplementation))
+
+#define SwizzleClassSelector(clazz, selector, newImplementation, pPreviousImplementation) \
+    (*pPreviousImplementation) = (__typeof((*pPreviousImplementation)))class_swizzleClassSelector((clazz), (selector), (IMP)(newImplementation))
+
+#define SwizzleSelectorWithBlock_Begin(clazz, selector) { \
+    SEL _cmd = selector; \
+    __block IMP _imp = class_swizzleSelectorWithBlock((clazz), (selector),
+#define SwizzleSelectorWithBlock_End );}
+
+#define SwizzleClassSelectorWithBlock_Begin(clazz, selector) { \
+    SEL _cmd = selector; \
+    __block IMP _imp = class_swizzleClassSelectorWithBlock((clazz), (selector),
+#define SwizzleClassSelectorWithBlock_End );}
+{% endhighlight %} 
+
+Macros for block swizzling work in pair to avoid having a block macro parameter:
+
+* Macro expansion of a block turns it into a single line, confusing the debugger
+* The block can contain commas, confusing identification of macro arguments
+
+## Usage
+
+The two previous examples can now be rewritten as follows:
+
+{% highlight objective-c %}
+@implementation UILabel (SwizzlingExamples)
+
++ (void)load
+{
+    SwizzleSelector(self, @selector(initWithFrame:), swizzle_initWithFrame, &initWithFrame);
+    SwizzleSelector(self, @selector(awakeFromNib), &swizzle_awakeFromNib, &awakeFromNib);
+    SwizzleSelector(self, sel_getUid("dealloc"), &swizzle_dealloc, &dealloc);
+}
+
+@end
+{% endhighlight %} 
+
+and
+
+{% highlight objective-c %}
+@implementation UILabel (SwizzlingExamples)
+
++ (void)load
+{
+    SwizzleSelectorWithBlock_Begin(self, @selector(initWithFrame:))
+    ^(UILabel *self, CGRect frame) {
+        if ((self = ((id (*)(id, SEL, CGRect))_imp)(self, _cmd, frame))) {
+            NSLog(@"Swizzled initWithFrame:");
+        }
+        return self;
+    }
+    SwizzleSelectorWithBlock_End;
+    
+    SwizzleSelectorWithBlock_Begin(self, @selector(awakeFromNib))
+    ^(UILabel *self) {
+        ((void (*)(id, SEL))_imp)(self, _cmd);
+        NSLog(@"Swizzled awakeFromNib");
+    }
+    SwizzleSelectorWithBlock_End;
+
+    SwizzleSelectorWithBlock_Begin(self, sel_getUid("dealloc"))
+    ^(__unsafe_unretained UILabel *self) {
+        NSLog(@"Swizzled dealloc");
+        ((void (*)(id, SEL))_imp)(self, _cmd);
+    }
+    SwizzleSelectorWithBlock_End;
+}
+
+@end
+{% endhighlight %} 
+
+# Wrapping up
+
+This implementation is available from [CoconutKit](https://github.com/defagos/CoconutKit) with other runtime additions.
