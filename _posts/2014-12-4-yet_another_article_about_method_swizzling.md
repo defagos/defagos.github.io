@@ -86,7 +86,7 @@ For class method swizzling, it suffices to call the above function on a metaclas
 {% highlight objective-c %}
 IMP class_swizzleClassSelector(Class clazz, SEL selector, IMP newImplementation)
 {
-    return class_swizzleSelector(objc_getMetaClass(class_getName(clazz)), selector, newImplementation);
+    return class_swizzleSelector(object_getClass(clazz), selector, newImplementation);
 }
 {% endhighlight %}
 
