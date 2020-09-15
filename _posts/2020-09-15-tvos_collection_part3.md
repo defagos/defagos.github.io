@@ -1,18 +1,24 @@
 # Part 3: A SwiftUI Collection Polishing
 
-In part 2 of this article series we implemented a first working collection view in SwiftUI, based on `UICollectionView`. This implementation is promising but still has a few issues and shortcomings that we will address in this final article.
+In part 2 of this article series we implemented a first working collection view in SwiftUI, powered by `UICollectionView`. This implementation is promising but still has a few issues and shortcomings that we will address in this final article.
 
 ## Fixing Cell Frames
 
-When running our shelf example it appears that cells on screen have correct frames, while cells coming from screen edges don't:
+When running our shelf example cells initially on screen have correct frames, while cells merging from screen edges do not:
 
 ![SwiftUI CollectionView](/images/first_swiftui_collection.jpg)
 
-Having a look at `UICollectionViewCell` and `UIHostingController` view frames, the problem is found to be related to how SwiftUI assigns a frame to views, unexpectedly applying safe area insets when such a controller is used for simple view embedding. 
+When inspected in the view debugger, `UICollectionViewCell` and `UIHostingController` view frames are fine, so the problem must be related to how SwiftUI assigns a frame to views contained in a `UIHostingController`. In fact, closer inspection of the applied frames reveals that the reduction in size is due to safe area insets being somehow applied.
 
-After searching for a bit, a [Stack Overflow thread](https://stackoverflow.com/questions/61552497/uitableviewheaderfooterview-with-swiftui-content-getting-automatic-safe-area-ins) proposes a workaround until `UIHostingController` itself provides an official API to disable this behavior. This workaround applies swizzling to all hosting view instances indiscriminately to ignore safe area insets, a serious issue for hosting controllers for which this behavior is actually desired (e.g. the `UIHostingController` containing the root SwiftUI view of the application, if any).
+A [Stack Overflow thread](https://stackoverflow.com/questions/61552497/uitableviewheaderfooterview-with-swiftui-content-getting-automatic-safe-area-ins) proposes a workaround for this issue until `UIHostingController` itself provides an official API to disable this behavior. This workaround applies swizzling to all hosting view instances indiscriminately, disabling safe area inset support entirely for all hosted SwiftUI views. 
 
-Instead of swizzling, we can provide the missing opt-in as an extension on `UIHostingController`, applied by dynamically subclassing the hosting view:
+This approach is too greedy and affects hosting controllers for which this behavior is actually legitimate and desired, for example `UIHostingController` hosting the SwiftUI root of a `UIApplication`. A more surgical approach than method swizzling is to use [dynamic subclassing](https://funwithobjc.tumblr.com/post/1482787069/dynamic-subclassing), the runtime hackery applied by key-value observing most notably. To sketch the idea briefly, consider we have an object of some class whose behavior we want to tweak:
+
+- First create a subclass of this class.
+- Add methods to the subcass (possibly calling a parent implementation if this makes sens).
+- Change the class of the object to the subclass.
+
+In our case, we can provide the missing opt-in as an extension on `UIHostingController`, applied by dynamically changing the hosting view class with a subclass ignoring safe area insets:
 
 ```
 extension UIHostingController {
@@ -55,13 +61,13 @@ This way we only apply a change of behavior to those `UIHostingController` insta
 hostController = UIHostingController(rootView: view, ignoreSafeArea: true)
 ```
 
-With this fix cell frames are now correct:
+With this simple trick cell frames are now correct:
 
 ![Fixed frame](/images/collection_fixed_cell_size.jpg)
 
 ## Supporting Focus on tvOS
 
-In our shelf example from previous article, using the new tvOS 14 `CardButtonStyle`, the expected focused appearance is not applied when running the project. Tthis effect does not work because the collection cell itself is focused and the button style [does not work in such cases](https://developer.apple.com/videos/play/wwdc2020/10042).
+In the shelf example discussed in part 2 of this series, using the new tvOS 14 `CardButtonStyle`, the expected focused appearance is not applied when running the application. This is actually expected behavior, as the cell itself is focusable and the button style [is not expected to work in such cases](https://developer.apple.com/videos/play/wwdc2020/10042).
 
 Since our `CollectionView` is a SwiftUI component, we don't need to use any delegate for cell selection and should handle such cases with simple buttons. This means our host cells should not be focusable:
 
@@ -75,23 +81,27 @@ private class HostCell: UICollectionViewCell {
 }
 ```
 
-This simple change alone suffices to fix focused button appearance:
+This simple change alone fixes focused card button appearance:
 
 ![Fixed focus](/images/collection_fixed_focus.jpg)
 
-Also note that SwiftUI correctly restores the focused item when returning from modal presentation, which is pretty nice.
+Also note that SwiftUI correctly restores the recently focused item when returning from modal presentation, which is pretty nice.
 
 ### Remark
 
-During my investigations I attempted to make cells focusable. As said above this approach disables focused button appearance and even prevents their use (their action is simply not triggered). 
+During my investigations I investigated focusable cell behavior more extensively, so here are a few more details if you are interested. 
 
-If we want a focused appearance it must also be implemented manually. Scaling is easy, tilting is another matter, though, and the native look & feel is not easy to reproduce perfectly. Moreover, the pressed appearance (obtained for free with `CardButtonStyle`) requires catching cell interactions and transferring them up the SwiftUI view hierarchy, e.g. with a custom environment key.
+As said above, using focusable cells disables focused button appearance. But in fact it even prevents their use (their action is simply not triggered), making SwiftUI `Button`s wrapped in focusable cells basically useless.
 
-For all these reasons disabling focus for cells embedding SwiftUI views is the easiest approach to get correct behavior consistent with the usual tvOS user experience.
+Moreover, any desired focused appearance must then be implemented manually. Scaling is easy, tilting is another matter, though, and the native tvOS look & feel is not easy to reproduce perfectly, with the problem you might never get the exact same result as Apple official implementation. 
+
+Finally, the pressed appearance (obtained for free with `CardButtonStyle`) requires catching cell interactions and transferring them up the SwiftUI view hierarchy, for example within the `@Environment` using a custom `EnvironmentKey`. Again this requires the appearance (scaling most notably) to be adjusted manually.
+
+For all these reasons I recommend to never make cells focusable if you intend to wrap SwiftUI views within them.
 
 ## Supporting Supplementary Views
 
-Supporting supplementary views is very similar to supporting cells. We simply introduce a dedicated view builder and a host view. As for cells, type inference requires the addition of a new `SupplementaryView `type parameter to the generic `CollectionView` type:
+Supporting supplementary views is very similar to supporting cells. We simply introduce a dedicated view builder and a host view. As for cells, type inference requires the addition of a new `SupplementaryView `type parameter to the generic `CollectionView` type, as well as a corresponding host view and view builder closure:
 
 ```
 struct CollectionView<Section: Hashable, Item: Hashable, Cell: View, SupplementaryView: View>: UIViewRepresentable {
@@ -134,7 +144,7 @@ struct CollectionView<Section: Hashable, Item: Hashable, Cell: View, Supplementa
 }
 ```
 
-Supplementary views are registered for specific kinds (e.g. header, footer or custom kind). We store known kinds of views in our coordinator as they are registered:
+Supplementary views are registered for specific kinds (e.g. header, footer or custom kind) and a single reuse identifier, as for cells. We store known supplementary view kinds in our coordinator as they are registered:
    
 ```
 struct CollectionView<Section: Hashable, Item: Hashable, Cell: View, SupplementaryView: View>: UIViewRepresentable {
@@ -181,12 +191,12 @@ struct CollectionView<Section: Hashable, Item: Hashable, Cell: View, Supplementa
 
 ## Further Possible Improvements
 
-This implementation can without a doubt be further improved. I hope it gave you some intuition about how UIKit views can be embedded into SwiftUI in non-trivial cases, so that you can embed other views in a similar way, should you find an issue that cannot be directly solved in SwiftUI.
+This implementation can without a doubt be further improved. I hope it gave you some intuition about how UIKit views can be embedded into SwiftUI in non-trivial cases, so that you can embed other views in a similar way should you find an issue that cannot be directly solved in SwiftUI.
 
 The following exercices are left for the reader:
 
-- Improve the public API with more expressive block signatures and optional supplementary view support.
+- Improve the public API with more expressive block signatures.
+- Implement supplementary view support in an optional way.
 - Use decoration views to add focus guides for navigation between rows of different length on tvOS.
-
 
 This concludes this series of articles. Hope you enjoyed the ride!
