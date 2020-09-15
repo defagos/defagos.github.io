@@ -6,7 +6,7 @@
 name: Samuel Défago
 
 # Short bio or description (displayed in the header)
-description: iOS developer
+description: iOS / tvOS developer
 
 # URL of your avatar or profile pic (you could use your GitHub profile pic)
 avatar: https://avatars.githubusercontent.com/defagos
@@ -17,29 +17,33 @@ avatar: https://avatars.githubusercontent.com/defagos
 
 # Includes an icon in the footer for each username you enter
 footer-links:
-  dribbble: 
+  dribbble:
   email: defagos@gmail.com
-  facebook: 
-  flickr: 
+  facebook:
+  flickr:
   github: defagos
-  instagram: 
+  instagram:
   linkedin: defagos
-  pinterest: 
-  rss: # just type anything here for a working RSS icon, make sure you set the "url" above!
+  pinterest:
+  rss: # just type anything here for a working RSS icon
   twitter: defagos
   stackoverflow: users/760435/defagos
+  youtube: # channel/<your_long_string> or user/<user-name>
+  googleplus: # anything in your profile username that comes after plus.google.com/
 
-# Your disqus shortname, entering this will enable commenting on posts
-disqus: 
+
+# Enter your Disqus shortname (not your username) to enable commenting on posts
+# You can find your shortname on the Settings page of your Disqus account
+disqus:
 
 # Enter your Google Analytics web tracking code (e.g. UA-2110908-2) to activate tracking
-google_analytics: 
+google_analytics:
 
 # Your website URL (e.g. http://barryclark.github.io or http://www.barryclark.co)
 # Used for Sitemap.xml and your RSS feed
-url: 
+url:
 
-# If you're hosting your site at a Project repository on GitHub pages 
+# If you're hosting your site at a Project repository on GitHub pages
 # (http://yourusername.github.io/repository-name)
 # and NOT your User repository (http://yourusername.github.io)
 # then add in the baseurl here, like this: "/repository-name"
@@ -52,7 +56,7 @@ baseurl: ""
 permalink: /:title/
 
 # The release of Jekyll Now that you're using
-version: v1.1.0
+version: v1.2.0
 
 # Jekyll 3 now only supports Kramdown for Markdown
 kramdown:
@@ -75,8 +79,8 @@ gems:
 
 # Exclude these files from your production _site
 exclude:
-    - Gemfile
-    - Gemfile.lock
-    - LICENSE
-    - README.md
-    - CNAME
+  - Gemfile
+  - Gemfile.lock
+  - LICENSE
+  - README.md
+  - CNAME
