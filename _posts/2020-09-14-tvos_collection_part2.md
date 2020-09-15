@@ -34,11 +34,11 @@ We therefore start our implementation by conforming our new `CollectionView` typ
 
 ```
 struct CollectionView: UIViewRepresentable {
-    func makeUIView(context: Context) -> some UIView {
+    func makeUIView(context: Context) -> UICollectionView {
         // Create the collection view for the first time
     }
     
-    func updateUIView(_ uiView: UIViewType, context: Context) {
+    func updateUIView(_ uiView: UICollectionView, context: Context) {
         // Update the existing collection view
     }
 }
@@ -60,11 +60,11 @@ struct CollectionView: UIViewRepresentable {
         }
     }
 
-    func makeUIView(context: Context) -> some UIView {
+    func makeUIView(context: Context) -> UICollectionView {
         return UICollectionView(frame: .zero, collectionViewLayout: layout())
     }
     
-    func updateUIView(_ uiView: UIViewType, context: Context) {
+    func updateUIView(_ uiView: UICollectionView, context: Context) {
         // Update the existing collection view
     }
 }
@@ -125,11 +125,11 @@ struct CollectionView<Section: Hashable, Item: Hashable>: UIViewRepresentable {
         }
     }
 
-    func makeUIView(context: Context) -> some UIView {
+    func makeUIView(context: Context) -> UICollectionView {
         return UICollectionView(frame: .zero, collectionViewLayout: layout())
     }
     
-    func updateUIView(_ uiView: UIViewType, context: Context) {
+    func updateUIView(_ uiView: UICollectionView, context: Context) {
         // Update the existing collection view
     }
 }
@@ -167,7 +167,7 @@ struct CollectionView<Section: Hashable, Item: Hashable>: UIViewRepresentable {
         return Coordinator()
     }
     
-    func makeUIView(context: Context) -> some UIView {
+    func makeUIView(context: Context) -> UICollectionView {
         let collectionView = UICollectionView(frame: .zero, collectionViewLayout: layout())
         context.coordinator.dataSource = Coordinator.DataSource(collectionView: collectionView) { collectionView, indexPath, item in
             // Return UICollectionViewCell for the item
@@ -196,7 +196,7 @@ struct CollectionView<Section: Hashable, Item: Hashable>: UIViewRepresentable {
         return snapshot
     }
     
-    func updateUIView(_ uiView: UIViewType, context: Context) {
+    func updateUIView(_ uiView: UICollectionView, context: Context) {
         guard let dataSource = context.coordinator.dataSource else { return }
         dataSource.apply(snapshot(), animatingDifferences: true)
     }
@@ -223,7 +223,7 @@ struct CollectionView<Section: Hashable, Item: Hashable, Cell: View>: UIViewRepr
         dataSource.apply(snapshot(), animatingDifferences: animated)
     }
     
-    func makeUIView(context: Context) -> some UIView {
+    func makeUIView(context: Context) -> UICollectionView {
         let collectionView = UICollectionView(frame: .zero, collectionViewLayout: layout())
         
         context.coordinator.dataSource = Coordinator.DataSource(collectionView: collectionView) { collectionView, indexPath, item in
@@ -234,7 +234,7 @@ struct CollectionView<Section: Hashable, Item: Hashable, Cell: View>: UIViewRepr
         return collectionView
     }
     
-    func updateUIView(_ uiView: UIViewType, context: Context) {
+    func updateUIView(_ uiView: UICollectionView, context: Context) {
         reloadData(context: context, animated: true)
     }
 }
@@ -360,7 +360,7 @@ struct CollectionView<Section: Hashable, Item: Hashable>: UIViewRepresentable {
         
     // ...
     
-    func updateUIView(_ uiView: UIViewType, context: Context) {
+    func updateUIView(_ uiView: UICollectionView, context: Context) {
         reloadData(context: context, animated: true)
     }
 }
@@ -439,7 +439,7 @@ Now that we have a cell, it suffices to register it and return dequeued instance
 struct CollectionView<Section: Hashable, Item: Hashable>: UIViewRepresentable {
     // ...
     
-    func makeUIView(context: Context) -> some UIView {
+    func makeUIView(context: Context) -> UICollectionView {
         let cellIdentifier = "hostCell"
     
         let collectionView = UICollectionView(frame: .zero, collectionViewLayout: layout(context: context))
@@ -551,7 +551,7 @@ struct CollectionView<Section: Hashable, Item: Hashable, Cell: View>: UIViewRepr
         return Coordinator()
     }
     
-    func makeUIView(context: Context) -> some UIView {
+    func makeUIView(context: Context) -> UICollectionView {
         let cellIdentifier = "hostCell"
         
         let collectionView = UICollectionView(frame: .zero, collectionViewLayout: layout(context: context))
@@ -567,7 +567,7 @@ struct CollectionView<Section: Hashable, Item: Hashable, Cell: View>: UIViewRepr
         return collectionView
     }
     
-    func updateUIView(_ uiView: UIViewType, context: Context) {
+    func updateUIView(_ uiView: UICollectionView, context: Context) {
         reloadData(context: context, animated: true)
     }
 }
