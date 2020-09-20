@@ -195,7 +195,7 @@ Without having the time to dig into what actually makes things worse on tvOS, I 
 
 SwiftUI grid-based layouts made of nested stacks and scroll views currently suffer from major performance issues. On tvOS these performance issues are so significant that attempting to load a few hundred items leads to a poor user experience. Loading thousands of items can bring an Apple TV to its knees.
 
-I [reported this problem to Apple during the iOS and tvOS 14 beta phase](http://openradar.appspot.com/radar?id=4957846227648512), knowing it would likely not be fixed in the official releases, and considered the available options:
+[I reported this problem to Apple during the iOS and tvOS 14 beta phase](http://openradar.appspot.com/radar?id=4957846227648512), knowing it would likely not be fixed in the official releases, and considered the available options:
 
 - Blissful optimism: Do nothing, continue to work with nested stack and scroll views, and hope that later iOS and tvOS releases fix the issue. In the meantime put an upper bound on the amount of content we display in grids, a couple hundred items at most.
 - Complete pessimism: Consider SwiftUI is not mature enough and use UIKit.

@@ -28,7 +28,7 @@ Let us start by wrapping a UIKit collection into a SwiftUI view.
 
 ## Wrapping UIKit Collection View Into SwiftUI
 
-What makes SwiftUI so appealing in the first place is the ease with which you can embed UIKit views in SwiftUI and conversely. This makes it easy to adopt SwiftUI where you can in your app, while still using good old UIKit where SwiftUI is lagging behind in functionality or performance.
+A great feature of SwiftUI is the ease with which you can embed UIKit views in SwiftUI and conversely. This makes it easy to adopt SwiftUI where you can in your app, while still using good old UIKit where SwiftUI is lagging behind in functionality or performance.
 
 SwiftUI provides the `UIViewRepresentable` protocol to [wrap a UIKit view for use in SwiftUI](https://developer.apple.com/documentation/swiftui/uiviewrepresentable). We can also wrap a view controller into a `UIViewControllerRepresentable`, but I here prefer the former approach as there is here no real competitive advantage in wrapping `UICollectionViewController` instead of `UICollectionView` directly.
 
