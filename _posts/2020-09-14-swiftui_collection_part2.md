@@ -3,9 +3,11 @@ layout: post
 title: Building a Collection For SwiftUI (Part 2) - A SwiftUI Collection Prototype
 ---
 
-Faced with the inability to reach an acceptable level of performance with grid layouts made of simple SwiftUI building blocks (stacks and scroll views), I decided to roll my own solution. 
+Faced with the inability to reach an acceptable level of performance with grid layouts made of simple SwiftUI building blocks, I decided to roll my own solution. 
 
-Two possible implementation strategies can be considered when implementing a SwiftUI generic collection:
+## Implementation Strategies and Requirements
+
+Two possible implementation strategies can be considered when implementing a SwiftUI collection:
 
 - Reproducing `UICollectionView` entirely in SwiftUI, including cell reuse and decoration views, not to mention flexible layout support.
 - Wrapping `UICollectionView` into a SwifUI `UIViewRepresentable`.
@@ -20,15 +22,15 @@ I added a few implementation constraints to ensure the custom collection view fe
 - The collection view must support arbitrary layouts and nicely update when SwiftUI detects a change to a source of truth.
 - Focus must be correctly managed on tvOS, in particular it should be possible to implement the standard user experience expected on Apple TV according to the [Human Interface Guidelines](https://developer.apple.com/design/human-interface-guidelines/tvos/overview/focus-and-parallax).
 
-Wrapping UIKit with SwiftUI is actually quite simple, and this is of course where to start.
+Let us start by wrapping a UIKit collection into a SwiftUI view.
 
-## Wrapping UICollectionView into SwiftUI
+## Wrapping UIKit Collection View Into SwiftUI
 
-What makes SwiftUI so appealing in the first place is the ease with which you can embed UIKit views in SwiftUI, or conversely. This makes it easy to adopt SwiftUI where you can in your app, while still using good old UIKit where SwiftUI is lagging behind in functionality or performance.
+What makes SwiftUI so appealing in the first place is the ease with which you can embed UIKit views in SwiftUI and conversely. This makes it easy to adopt SwiftUI where you can in your app, while still using good old UIKit where SwiftUI is lagging behind in functionality or performance.
 
 SwiftUI provides the `UIViewRepresentable` protocol to [wrap a UIKit view for use in SwiftUI](https://developer.apple.com/documentation/swiftui/uiviewrepresentable). We can also wrap a view controller into a `UIViewControllerRepresentable`, but I here prefer the former approach as there is here no real competitive advantage in wrapping `UICollectionViewController` instead of `UICollectionView` directly.
 
-If you are not familiar with SwiftUI, just recall that a `View` in SwiftUI can be seen as a short-lived _layout snapshot_, unlike a `UIView` in UIKit which is actually _what is drawn on screen_. To create and update content on screen in SwiftUI you therefore provide an up-to-date snapshot of your layout which then gets applied by the SwiftUI layout engine depending on what changed. Snapshots are then discarded until new ones are required by further updates.
+If you are not familiar with SwiftUI, just recall that a `View` in SwiftUI can be seen as a short-lived _layout snapshot_, unlike a `UIView` in UIKit which is actually _what is drawn on screen_. To create and update content on screen in SwiftUI you therefore provide an up-to-date snapshot of your layout which then gets applied by the SwiftUI layout engine depending on what has changed. Snapshots are then discarded until new ones are required by further updates.
 
 When interfacing UIKit with SwiftUI this important distiction translates into two protocol methods required by `UIViewRepresentable`, so that `View` snapshots can create or update the matching `UIView` on screen:
 
@@ -53,9 +55,9 @@ In our case  the actual `UICollectionView` instance must be created in `makeUIVi
 
 ## Providing a Collection View Layout
 
-With iOS 13 and tvOS 13 collection view layouts can be provided in a general declarative way through [compositional layouts](https://developer.apple.com/videos/play/wwdc2019/215). The obtained layout code is expressive and supports advanced features like independently scrollable sections.
+With iOS 13 and tvOS 13 collection view layouts can be provided in a general declarative way through [compositional layouts](https://developer.apple.com/videos/play/wwdc2019/215). The obtained layout code is expressive and supports advanced features like [independently scrollable sections](https://developer.apple.com/documentation/uikit/uicollectionlayoutsectionorthogonalscrollingbehavior).
 
-Because SwiftUI is also available starting with iOS 13 and tvOS 13 compositional layouts are the obvious choice for our implementation:
+Because SwiftUI was introduced with iOS and tvOS 13, compositional layouts are the obvious choice for our implementation:
 
 {% highlight swift %}
 struct CollectionView: UIViewRepresentable {
@@ -77,17 +79,17 @@ struct CollectionView: UIViewRepresentable {
 
 Note that we provide `.zero` as frame since SwiftUI is responsible of applying a suitable frame when the `UICollectionView` is actually drawn on screen.
 
-Compositional layouts are defined using sections, each section containing groups of items with supplementary or decoration views, and possibly independent orthogonal scrolling behavior. How and where this layout definition should be provided is yet still unclear, we just know it must somehow be provided to the `layout()` method.
+Compositional layouts are defined using sections, each section containing groups of items with supplementary or decoration views, and possibly independent orthogonal scrolling behavior. How and where this layout definition should be provided is yet still unclear, we just know it must ultimately be delivered by a `layout()` method.
 
-Before we proceed with finding how to actually provide a layout, let us first discuss how data will be loaded into the collection.
+Before we proceed with finding how to actually provide section layout definitions, let us first discuss how data will be loaded into the collection.
 
 ## Loading Data Into the Collection
 
 Since iOS 13 and tvOS 13, and in addition to compositional layouts, UIKit provides [diffable data sources](https://developer.apple.com/videos/play/wwdc2019/220) to incrementally update data associated with a collection and animate changes. Such data sources ensure that cells and underlying data stay consistent, avoiding crashes ususally associated with mismatches between data and layout.
 
-When a data change needs to be made, a corresponding snapshot must be created and applied to the data source, which then takes care of the rest. This approach is quite similar to how SwiftUI reacts to data changes in general: When a change is detected a new layout description is provided to represent the new state and SwiftUI takes care of applying it to update the content visible on screen. Diffable data sources therefore seem quite appropriate in achieving what we need.
+When a data change needs to be made, a corresponding snapshot must be created and applied to the data source, which then takes care of the updating the associated collection view. This approach is quite similar to how SwiftUI reacts to data changes in general: When a change is detected a new layout description is provided to represent the new state and SwiftUI takes care of applying it to update the content visible on screen. Diffable data sources therefore seem quite appropriate in achieving what we need.
 
-Let us first briefly consider things from the outside. From a client perspective, a parent content view which displays some `Model` conforming to `ObservableObject` into our `CollectionView` would roughly be implemented as follows:
+Let us first briefly consider from a client perspective. A parent content view which displays some `Model` conforming to `ObservableObject` into our `CollectionView` would roughly be implemented as follows:
 
 {% highlight swift %}
 struct ContentView: View {
@@ -105,9 +107,9 @@ struct ContentView: View {
 
 When a model update is published by the observed object the view body is recalculated. An internal method takes care of creating a new data snapshot in some format understood by the `CollectionView`, yet to be determined. The SwiftUI layout engine then either creates or updates the underlying `UICollectionView` using this new view snapshot.
 
-What kind of data format should we use, then? Using `UICollectionViewDiffableDataSource` internally seems appropriate for the reasons mentioned above. This type is generic and parametrized with two types, `SectionIdentifierType` and `ItemIdentifierType`, both required to be `Hashable`. Our `CollectionView` type therefore needs to be generic as well.
+What kind of data format should we use, then? Using `UICollectionViewDiffableDataSource` internally is appropriate for the reasons outlined above. Since this type is generic and parametrized with two types, `SectionIdentifierType` and `ItemIdentifierType` (both required to be `Hashable`), our `CollectionView` type needs to be generic as well.
 
-For compatibility with compositional layouts, displaying rows of items, it is natural to model the data displayed by a `CollectionView` as an array of rows, each row being described by the section it corresponds to and the items it contains:
+For compatibility with compositional layouts which display rows of items, it is natural to model the data displayed by a `CollectionView` as an array of rows, each row being described by the section it corresponds to and the items it contains:
 
 {% highlight swift %}
 struct CollectionRow<Section: Hashable, Item: Hashable>: Hashable {
@@ -124,19 +126,7 @@ Since `CollectionRow` is a generic type, the collection view itself must at leas
 struct CollectionView<Section: Hashable, Item: Hashable>: UIViewRepresentable {
     let rows: [CollectionRow<Section, Item>]
     
-    private func layout() -> UICollectionViewLayout {
-        return UICollectionViewCompositionalLayout { sectionIndex, layoutEnvironment in
-            // Return section layout
-        }
-    }
-
-    func makeUIView(context: Context) -> UICollectionView {
-        return UICollectionView(frame: .zero, collectionViewLayout: layout())
-    }
-    
-    func updateUIView(_ uiView: UICollectionView, context: Context) {
-        // Update the existing collection view
-    }
+    // ...
 }
 {% endhighlight %}
 
@@ -156,7 +146,7 @@ This data source must be retained, as the collection view only keeps a weak refe
 
 Fortunately SwiftUI provides an answer in the form of coordinators. The `UIViewRepresentable` protocol namely lets you optionally implement a `makeCoordinator()` method, from which you can return an instance of a custom type. SwiftUI calls this method before creating the UIKit view from the first time, associates the coordinator with it, and keeps the coordinator alive for as long as the `UIView` is in use.
 
-We don't know much about the coordinator type we need yet, except that it must store our data source. After initial creation, this coordinator is provided to the `makeUIView(context:)` method through the context parameter as a constant. We must be able to mutate the contained data source reference after the `UICollectionView` has been instantiated (the diffable data source namely requires the collection view at initialization time), so our `Coordinator` is required to be a `class`:
+We don't know much about the coordinator type we need yet, except that it must store our data source. After initial creation, this coordinator is provided to the `makeUIView(context:)` method through the context parameter as a constant. We must be able to mutate the contained data source reference after the `UICollectionView` has been instantiated (the diffable data source namely requires the collection view at initialization time), so our `Coordinator` needs to be a `class`:
 
 {% highlight swift %}
 struct CollectionView<Section: Hashable, Item: Hashable>: UIViewRepresentable {
@@ -182,7 +172,7 @@ struct CollectionView<Section: Hashable, Item: Hashable>: UIViewRepresentable {
 }
 {% endhighlight %}
 
-Now that we have a data source properly setup and retained for the lifetime of the collection view, we can discuss how to fill it with data.
+Now that we have a data source properly created and retained for the lifetime of the collection view, we can discuss how to fill it with data.
 
 ## Data Source Snapshots
 
@@ -211,13 +201,13 @@ struct CollectionView<Section: Hashable, Item: Hashable>: UIViewRepresentable {
 There are two performance issues associated with the above code, though:
 
 - The first animated applied snapshot can be slow for a large amount of data.
-- If you run this code on tvOS for a large number of row items and try to navigate the collection, you will discover that performance is really poor. If you try the same code on iOS performance is much better.
+- If you run this code on tvOS for a large number of row items and try to navigate the collection, you will discover that performance is really poor. If you try the same code on iOS performance is much better, though.
 
 Since performance issues are what motivated the creation of a custom `CollectionView` in the first place, we must fix these identified problems before going any further.
 
 ## Solving Performance Issues
 
-To fix performance issues related to the first snapshot applied with an animation, it suffices to factor out the corresponding code into a `reloadData(context:animated:)` method. This method can then be called with or without animation depending on whether we are creating or updating the view:
+To fix performance issues associated with the first snapshot, it suffices to factor out the corresponding code into a `reloadData(context:animated:)` method, called with or without animation depending on whether we are creating or updating the view:
 
 {% highlight swift %}
 struct CollectionView<Section: Hashable, Item: Hashable, Cell: View>: UIViewRepresentable {
@@ -245,11 +235,13 @@ struct CollectionView<Section: Hashable, Item: Hashable, Cell: View>: UIViewRepr
 }
 {% endhighlight %}
 
-The second performance problem we are facing on tvOS is due to snapshots being applied too many times. Recall that SwiftUI recalculates view bodies when a source of truth changes. This include `@Environment` changes, in particular due to the focus being moved. This is why you should in general be very careful about the work performed in `updateUIView(_:context:)`, as the method can be called more often than you would think.
+The second performance problem we are facing on tvOS is due to snapshots being applied too many times. Recall that SwiftUI recalculates view bodies when a source of truth changes. Many kinds of changes can therefore trigger `updateUIView(_:context:)`, which is why you should attempt to keep its implementation as lightweight as possible in general.
 
-There is no way to apply updates outside `updateUIView(_:context:)`, and nothing distinguishes updates due to data or environment changes when this method is called. Can we still avoid calculating and applying snapshots when not necessary? How can we know that data has not changed?
+In particular `@Environment` changes trigger a view update. A specificity of tvOS is that focus updates are provided through the environment. Moving the focus around is therefore sufficient to trigger view updates with each and every move. This is the reason why navigating the collection is a lot heavier on tvOS than on iOS with the implementation above, as snaphots are applied every time the focus is moved.
 
-We can, and it is quite simple indeed. As you may remember we made `CollectionViewRow` conform to `Hashable`. Calculating hashes is much cheaper than creating and applying a snapshot. Each time we apply a snapshot we can therefore store a hash of its `rows`, persist this value into our coordinator so that it stays available between updates, and only apply a new snapshot when the hash actually changed:
+Sadly there is no way to distinguish updates due to data or enviroment changes in `updateUIView(_:context:)`. The context does not provide this kind of information, the implementation therefore has no way to know whether an update requires a snapshot to be applied (data change) or not (simple environment change). Is there a way to avoid applying snaphots when the data has not changed?
+
+Fortunately there is. As you may remember we made `CollectionViewRow` conform to `Hashable`. Calculating hashes is much cheaper than creating and applying a snapshot. Each time we apply a snapshot we can therefore store a hash of its `rows`, persist this value into our coordinator so that it stays available between updates, and only apply a new snapshot when the hash actually changed:
 
 {% highlight swift %}
 struct CollectionView<Section: Hashable, Item: Hashable>: UIViewRepresentable {
@@ -274,9 +266,9 @@ struct CollectionView<Section: Hashable, Item: Hashable>: UIViewRepresentable {
 }
 {% endhighlight %}
 
-With this simple optimization performance problems on tvOS are eliminated, even with large data sets containing thousands of items. Note that though the `CollectionView` inhibits reloads due to environment changes, subviews (e.g. cells we will discuss below) can still properly respond to environment changes if they need to.
+With this simple trick performance problems on tvOS are eliminated, even with large data sets containing thousands of items. Note that though this `CollectionView` implementation inhibits reloads due to environment changes, subviews (e.g. cells we will discuss below) can still individually respond to environment changes if they need to.
 
-We now almost have a first working `CollectionView` implementation, but we still need to be able to configure its layout and cells when creating it.
+We now almost have a first working `CollectionView` implementation. We only need to be able to configure its layout and cells when creating it.
 
 ## Collection Layout Support
 
@@ -294,7 +286,7 @@ struct CollectionView<Section: Hashable, Item: Hashable>: UIViewRepresentable {
 }
 {% endhighlight %}
 
-How should clients of our `CollectionView` provide a layout? We want our collection to behave as a native SwiftUI component, it would therefore be tempting to use [function builders](https://www.swiftbysundell.com/articles/deep-dive-into-swift-function-builders) to have a SwiftUI-inspired syntax for layout construction too. IMHO this is a bit too much, as the current compositional layout API is already declarative and simple enough.
+How should clients of our `CollectionView` provide a layout? We want our collection to behave as a native SwiftUI component, it would therefore be tempting to use [function builders](https://www.swiftbysundell.com/articles/deep-dive-into-swift-function-builders) to have a SwiftUI-inspired syntax for layout construction too. But since the current compositional layout API is already declarative and simple, I think it is simpler to just use it as is, rather than introducing a new syntax and the code to support it.
 
 Our compositional layout internally requires a section layout provider trailing closure, so this is what our public type interface will let the user customize:
 
@@ -329,7 +321,7 @@ CollectionView(rows: rows()) { sectionIndex, layoutEnvironment in
 }
 {% endhighlight %}
 
-Note that how `rows()` are actually provided is here omitted for simplicity, as it does not affect the layout.
+Refer to the [official documentation](https://developer.apple.com/documentation/uikit/views_and_controls/collection_views/layouts) for more information about the compositional layout API. Note that how `rows()` are actually provided is here omitted for simplicity, as it does not affect the layout.
 
 The layout example above is quite simple. In general each section layout might depend on the data model, though, for example if the layout is received from a web service. In such cases the `sectionLayoutProvider` block will capture the initial context and keep it for subsequent layout updates, which is not what we want if the layout returned by the web service later changes. To solve this issue our friend the coordinator again comes to the rescue:
 
@@ -371,8 +363,9 @@ struct CollectionView<Section: Hashable, Item: Hashable>: UIViewRepresentable {
 }
 {% endhighlight %}
 
-This way we ensure the section layout provider is kept up-to-date between view updates so that the layout is always the most recent one, especially if it depends on the data model. Note that the optional `sectionLayoutProvider` stored by the `Coordinator` can here be safely force unwrapped, as it will always be available when layout is triggered by a view update. Note we also updated the `layout(context:)` method with a `Context` parameter to retrieve the coordinator from.
+This way we ensure the section layout provider is kept up-to-date between view updates so that the layout is always the most recent one, especially if it depends on the data model. Note that the optional `sectionLayoutProvider` stored by the `Coordinator` can here be safely force unwrapped, as it will always be available by construction. Note we also updated the `layout(context:)` method with a `Context` parameter to retrieve the coordinator from.
 
+With layout definition needs covered let us finish by discussing cell layout and display.
 
 ## Cell Layout
 
@@ -400,9 +393,9 @@ struct CollectionView<Section: Hashable, Item: Hashable, Cell: View>: UIViewRepr
 
 The `@ViewBuilder` syntax requires a dedicated initializer, as `@ViewBuilder` can only appear as a parameter-attribute. Note that Swift infers the type of the cell body based on the view builder block, forcing us to add `Cell` as additional parameter of the `CollectionView` generic type list.
 
-## SwiftUI Cell Hosting
+## Cell Display
 
-Clients of our `CollectionView` can now define cells for our collection in SwiftUI. These cells are ultimately displayed by a `UICollectionView` and thus must be wrapped into UIKit. This is achieved by using `UIHostingController` and a simple host `UICollectionViewCell`:
+Cells whose layout is defined with SwiftUI code are ultimately displayed by a `UICollectionView` and thus must be wrapped for display by UIKit. This is achieved by using `UIHostingController` and a simple host `UICollectionViewCell`:
 
 {% highlight swift %}
 struct CollectionView<Section: Hashable, Item: Hashable, Cell: View>: UIViewRepresentable {
@@ -433,12 +426,12 @@ struct CollectionView<Section: Hashable, Item: Hashable, Cell: View>: UIViewRepr
 }
 {% endhighlight %}
 
-The implementation of this host cell is quite straightforward:
+The implementation of this cell is straightforward:
 
-- We prepare a `UIHostingController` when setting a SwiftUI cell. The hosting controller view is installed to fill the entire cell content view. Note that creating a `UIHostingController` is in fact quite efficient.
+- We prepare a `UIHostingController` when setting a SwiftUI cell. The hosting controller view is installed to fill the entire cell content view. Such embedding is actually made possible by the fact that creating a `UIHostingController` is actually quite cheap.
 - When a cell is reused, the hosting controller view is removed and the controller itself is released.
 
-Now that we have a cell, it suffices to register it and return dequeued instances from our data source:
+Now that we have a cell, it suffices to register it and return dequeued instances from our data source, assigning it the corresponding SwiftUI cell:
 
 {% highlight swift %}
 struct CollectionView<Section: Hashable, Item: Hashable>: UIViewRepresentable {
@@ -462,11 +455,11 @@ struct CollectionView<Section: Hashable, Item: Hashable>: UIViewRepresentable {
 }
 {% endhighlight %}
 
-Note that unlike cells defined in `UIKit`, there is no need for clients of our `CollectionView` to mess with cell registrations and reuse identifiers. Only one cell identifier is required and managed internally. All cells provided in SwiftUI namely share the same `Cell` type, whose actual type is filled in by the Swift compiler based on what is inside the view builder closure.
+Note that, unlike cells defined in UIKit, there is no need for clients of our `CollectionView` to mess with cell class registrations and reuse identifiers. Only one cell identifier is required and managed internally. All cells provided in SwiftUI namely share the same `Cell` generic type parameter, whose actual value is filled in by the Swift compiler based on what is inside the view builder closure.
 
 ### Remark
 
-iOS and tvOS 14 provide a new `CellRegistration` API but, according to my tests in recent beta versions, cells are not reused correctly (`prepareForReuse` is never called). The code above therefore uses the old cell registration and dequeuing API.
+iOS and tvOS 14 provide a [new `CellRegistration` API](https://developer.apple.com/documentation/uikit/uicollectionview/cellregistration) but, to keep things simple, we still use the old cell registration and dequeuing API, so that the implementation is compatible with iOS and tvOS 13 without the use of availability macros. The iOS and tvOS 14 modern implementation is left as an exercise for the reader.
 
 ## Complete implementation
 
