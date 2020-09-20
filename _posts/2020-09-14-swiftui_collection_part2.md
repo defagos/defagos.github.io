@@ -5,7 +5,7 @@ title: Building a Collection For SwiftUI (Part 2) - SwiftUI Collection Implement
 
 Faced with the inability to reach an acceptable level of performance with grid layouts made of simple SwiftUI building blocks, I decided to roll my own solution. 
 
-_This article is part 2 in the [Buiilding a Collection For SwiftUI](/swiftui_collection_intro) series_.
+_This article is part 2 in the [Building a Collection For SwiftUI](/swiftui_collection_intro) series_.
 
 ## Implementation Strategies and Requirements
 

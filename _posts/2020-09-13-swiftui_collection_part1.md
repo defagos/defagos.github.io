@@ -7,7 +7,7 @@ SwiftUI does not offer any full-featured collection component like UIKit does, m
 
 In fact, combining these basic components to achieve grid and table layouts in SwiftUI is incredibly simple, with a clean and beautiful formalism. And with the lazy components added this year, there hasn't apparently been any better time to fully embrace SwiftUI, has there?
 
-_This article is part 1 in the [Buiilding a Collection For SwiftUI](/swiftui_collection_intro) series_.
+_This article is part 1 in the [Building a Collection For SwiftUI](/swiftui_collection_intro) series_.
 
 ## Basic Grid Layouts in SwiftUI
 
