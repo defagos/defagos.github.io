@@ -3,9 +3,9 @@ layout: post
 title: Building a Collection For SwiftUI (Part 3) - Fixes and Focus Management
 ---
 
-_This article is part 3 in the [Buiilding a Collection For SwiftUI](/swiftui_collection_intro) series_.
-
 In [part 2 of this article series](/swiftui_collection_part2) we implemented a first working collection view in SwiftUI, powered by `UICollectionView`. This implementation is promising but still has a few issues and shortcomings that we will address in this final article.
+
+_This article is part 3 in the [Buiilding a Collection For SwiftUI](/swiftui_collection_intro) series_.
 
 ## Fixing Cell Frames
 

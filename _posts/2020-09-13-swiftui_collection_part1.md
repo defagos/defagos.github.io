@@ -3,11 +3,11 @@ layout: post
 title: Building a Collection For SwiftUI (Part 1) - Mimicking Collections in SwiftUI
 ---
 
-_This article is part 1 in the [Buiilding a Collection For SwiftUI](/swiftui_collection_intro) series_.
-
 SwiftUI does not offer any full-featured collection component like UIKit does, merely smaller building blocks like stacks, lists and scroll views (as well as lazy stacks and grids newly introduced in iOS and tvOS 14). In isolation none of these components is a true competitor to `UICollectionView` but, combined together, they can be used to build pretty advanced grid and table layouts.
 
 In fact, combining these basic components to achieve grid and table layouts in SwiftUI is incredibly simple, with a clean and beautiful formalism. And with the lazy components added this year, there hasn't apparently been any better time to fully embrace SwiftUI, has there?
+
+_This article is part 1 in the [Buiilding a Collection For SwiftUI](/swiftui_collection_intro) series_.
 
 ## Basic Grid Layouts in SwiftUI
 
