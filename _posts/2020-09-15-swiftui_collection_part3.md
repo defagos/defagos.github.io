@@ -1,13 +1,15 @@
 ---
 layout: post
-title: Building a Collection For SwiftUI (Part 3) - Focus Management and Polishing
+title: Building a Collection For SwiftUI (Part 3) - Fixes and Focus Management
 ---
+
+_This article is part 3 in the [Buiilding a Collection For SwiftUI](/swiftui_collection_intro) series_.
 
 In [part 2 of this article series](/swiftui_collection_part2) we implemented a first working collection view in SwiftUI, powered by `UICollectionView`. This implementation is promising but still has a few issues and shortcomings that we will address in this final article.
 
 ## Fixing Cell Frames
 
-When running our shelf example cells initially on screen have correct frames, while cells emerging from screen edges do not:
+When running our shelf example, cells initially on screen have correct frames, while cells emerging from screen edges do not:
 
 ![SwiftUI CollectionView](/images/first_swiftui_collection.jpg)
 
@@ -15,9 +17,9 @@ When inspected in the view debugger, `UICollectionViewCell` and `UIHostingContro
 
 A [Stack Overflow thread](https://stackoverflow.com/questions/61552497/uitableviewheaderfooterview-with-swiftui-content-getting-automatic-safe-area-ins) proposes a workaround for this issue until `UIHostingController` itself provides an official API to disable this behavior. This workaround applies swizzling to all hosting view instances indiscriminately, disabling safe area inset support entirely for all hosted SwiftUI views. 
 
-This approach is too greedy and affects hosting controllers for which this behavior is actually legitimate and desired, for example a `UIHostingController` hosting the SwiftUI root of a `UIApplication`. A more surgical approach than method swizzling is to use [dynamic subclassing](https://funwithobjc.tumblr.com/post/1482787069/dynamic-subclassing), the runtime wizardry applied by key-value observing most notably. 
+This approach is too greedy and affects hosting controllers for which this behavior is actually legitimate and desired, for example a `UIHostingController` hosting the SwiftUI root of a `UIApplication`. A more surgical approach than method swizzling is to use [dynamic subclassing](https://funwithobjc.tumblr.com/post/1482787069/dynamic-subclassing), the runtime wizardry applied by key-value observing. 
 
-To briefly sketch the theory behind dynamic subclassing, consider we have an object of some class whose behavior we want to tweak:
+To briefly sketch the theory behind dynamic subclassing, consider you have an object of some class whose behavior you want to tweak:
 
 - First register a new subclass of this class at runtime.
 - Then add methods to the subclass (possibly calling a parent implementation if this makes sense).
@@ -72,31 +74,39 @@ With this simple trick cell frames are now correct:
 
 ## Supporting Focus on tvOS
 
-In the shelf example discussed in [part 2 of this article series](/swiftui_collection_part2), using the new tvOS 14 `CardButtonStyle`, the usual focused appearance is not applied when running the application. This is actually expected behavior, as the cell itself is focusable and the button style [is not meant to receive focus in such cases](https://developer.apple.com/videos/play/wwdc2020/10042).
+In the shelf example discussed at the end of [part 2 of this article series](/swiftui_collection_part2), using the new tvOS 14 `CardButtonStyle`, the usual focused appearance is not applied when running the application. This is actually expected behavior, as the cell itself is focusable and the button style [is not meant to receive focus in such cases](https://developer.apple.com/videos/play/wwdc2020/10042).
 
-In fact, SwiftUI buttons wrapped in focusable cells cannot be triggered at all. As a good SwiftUI citizen, our `CollectionView` cannot exclude prevent buttons from being used in cells, therefore host cells must not be focusable. This means we will not respond to collection cell standard selection delegate either, but rather let buttons handle actions.
+In fact, SwiftUI buttons wrapped in focusable cells cannot be triggered at all. As a good SwiftUI citizen, our `CollectionView` must not prevent buttons from being used in cells, therefore host cells must not be focusable themselves. This also means we will not respond to collection cell standard selection delegate either, but rather let buttons handle actions.
 
-One way to disable focus for a cell is by implementing `canBecomeFocused` on the cell class itself and return `false`. This works well in general, except when data source changes are applied with animations, in which case the focus is likely to spin out of control. We therefore need a better strategy.
+One way to disable focus for a cell is by implementing `canBecomeFocused` on the cell class itself and return `false`. This seems to work well in general, but this strategy breaks when data source changes are applied with animations. In such cases the focus often spins out of control on tvOS. We therefore need a better approach.
 
-First we need to understand what the standard expected behavior is. To find the answer I implemented a separate basic `UICollectionView` with a simple data source and focusable `UICollectionViewCell`s. I could observe that the focused item is followed when data source changes are animated and that the focus never spins out of control in such cases. There is still a minor issue with the focused appearance being lost after the animation ends (likely a `UICollectionView` bug), but it suffices to swipe the remote again to fix the issue. This user experience sets our goal for our SwiftUI `CollectionView` focus behavior.
+### UICollectionView and Animated Reloads
 
-All our problems are related to the fact we disabled focus entirely for cells. We cannot enable focus globally for reasons mentioned above, still we can enable it when an animated reload is made. This can be achieved thanks to `UICollectionViewDelegate`, which provides a dedicated delegate method to decide at any time whether a cell must be focusable or not. We therefore make our `Coordinator` conform to this protocol and introduce an internal flag to enable or disable focus at any time for all cells:
+To understand this buggy behavior we need to figure the expected behavior of a `UICollectionView` when an animated reload occurs. To find the answer I simply implemented a basic collection in UIKit, with a simple data source and focusable `UICollectionViewCell`s:
+- On tvOS I could observe that the focused item is followed when data source changes are animated. The focus never spins out of control during reloads. There is still a minor issue with the focused appearance being lost after the animation ends (likely a `UICollectionView` bug), but it suffices to swipe the remote again to have a nearby item focused. 
+- On iOS the content offset is simply preserved, as there is no currently focus concept.
+
+This user experience sets our goal for our SwiftUI `CollectionView` focus behavior.
+
+### Disabling and Enabling Focus
+
+Disabling focus on cell classes directly does not work, but a similar result can be achieved thanks to `UICollectionViewDelegate`, which provides a dedicated delegate method to decide at any time whether a cell must be focusable or not. We therefore make our `Coordinator` conform to this protocol and introduce an internal flag to enable or disable focus for all cells when we want:
 
 {% highlight swift %}
 public struct CollectionView<Section: Hashable, Item: Hashable, Cell: View>: UIViewRepresentable {
     public class Coordinator: NSObject, UICollectionViewDelegate {
         // ...
         
-        fileprivate var focusable: Bool = false
+        fileprivate var isFocusable: Bool = false
         
         public func collectionView(_ collectionView: UICollectionView, canFocusItemAt indexPath: IndexPath) -> Bool {
-            return focusable
+            return isFocusable
         }
     }
 }
 {% endhighlight %}
 
-We can now enable `UICollectionView` cell focus right when the collection needs it, letting it correctly track the currently focused item. To keep things as local as possible, we enable focus, force a focus update, and then immediately reset the flag to its nominal value:
+We can now enable `UICollectionView` cell focus during reloads, letting the collection view correctly follow the currently focused item. The rest of the time cells must not be focusable. We strive to enable focus for as little time as possible, and forcing a focus update before restting the flag to its nominal value is sufficient to achieve proper behavior:
 
 {% highlight swift %}
 public struct CollectionView<Section: Hashable, Item: Hashable, Cell: View>: UIViewRepresentable {
@@ -109,10 +119,10 @@ public struct CollectionView<Section: Hashable, Item: Hashable, Cell: View>: UIV
         let rowsHash = rows.hashValue
         if coordinator.rowsHash != rowsHash {
             dataSource.apply(snapshot(), animatingDifferences: animated) {
-                coordinator.focusable = true
+                coordinator.isFocusable = true
                 collectionView.setNeedsFocusUpdate()
                 collectionView.updateFocusIfNeeded()
-                coordinator.focusable = false
+                coordinator.isFocusable = false
             }
             coordinator.rowsHash = rowsHash
         }
@@ -128,9 +138,9 @@ With these changes the focus now appears as expected and the focused item is fol
 
 ### Remark
 
-During my investigations I could have a deeper look at focusable cell behavior. Here are a few more details if you are interested. 
+During my investigations I worked with focusable cells for a while until I realized this was a bad idea. Here are a few more findings if you are interested. 
 
-It is possible to keep cells focusable but, as said above, `Button`s are then basically useless. Moreover, focused appearance must be implemented manually by tweaking view properties. Scaling is easy but tilting is another matter, and the native tvOS look & feel is not easy to reproduce accurately. 
+If we keep cells focusable `Button`s are basically useless, as said above. Moreover, focused appearance must be implemented manually by tweaking view properties. Scaling is easy but tilting is another matter, and the native tvOS look & feel is not easy to reproduce accurately. 
 
 Finally, the pressed appearance (obtained for free with `CardButtonStyle`) requires catching cell interactions and transferring them up the SwiftUI view hierarchy, for example through the `@Environment` using a custom `EnvironmentKey`. Again this requires the appearance (scaling) to be adjusted manually.
 
@@ -181,7 +191,7 @@ struct CollectionView<Section: Hashable, Item: Hashable, Cell: View, Supplementa
 }
 {% endhighlight %}
 
-Supplementary views are registered for a single reuse identifier (for the same reason a single identifier is required for cells) but specific kinds (e.g. header, footer or custom kind). We store known kinds in our coordinator as they are registered so that each required registration is made at most once:
+Supplementary views are registered for a single reuse identifier (for the same reason a single identifier is required for cells) but specific kinds, e.g. header, footer or custom. We store known kinds in our coordinator as they are registered so that each required registration is made at most once:
    
 {% highlight swift %}
 struct CollectionView<Section: Hashable, Item: Hashable, Cell: View, SupplementaryView: View>: UIViewRepresentable {
@@ -226,21 +236,27 @@ struct CollectionView<Section: Hashable, Item: Hashable, Cell: View, Supplementa
 }
 {% endhighlight %}
 
+Supplementary views must be added to your layout and defined within the corresponding view builder. Refer to the source code (link at the end of this article) for an example of use.
+
 ## Additional Considerations
 
-Before we wrap things up I just wanted to mention a few important behaviors related to our implementation:
+Before we wrap things up, I just wanted to mention a few important behaviors related to this implementation:
 
 - Since cells are reused any `@State` they store is temporary. Persistent state should be stored in your model instead.
-- Diffable data sources need each item to have a unique identifier, no matter the row it appears in, otherwise errors will be reported. This is because items can be moved between sections in general. Several sections can display the same item, but you need to make it unique for each section, for example by wrapping it into a `struct` associating it with its section.
+- Diffable data sources need each item to have a unique identifier, no matter the row it appears in, otherwise errors will be reported. This is because items can be moved between sections in general. Several sections can display the same item, but in order to do so you need to make the item truly unique for each section, for example by wrapping it into a `struct` and associating it with its section.
+- Changes are detected based on hashes. If a displayed item changes internally (e.g. some title changes) but its hash does not change, no update will be triggered.
 
 Further improvements could be made and are left as exercise for the reader:
 
 - Make supplementary view support optional.
 - Make tabs optionally scroll with the content on tvOS (Hint: `tabBarObservedScrollView`).
 - Use decoration views to add focus guides for navigation between rows of different length on tvOS.
+- Port this collection to macOS and `NSCollectionView`. I read somewhere that nested stacks and scroll view performance was poor on macOS as well, probably because macOS has focus support for keyboard navigation. It is therefore likely that the approach discussed for tvOS can be applied to macOS in a similar way.
 
-## Wrapping Things Up
+## Source Code
 
-This article is the last one in this series. I hope you enjoyed the ride and learned a few things along the way!
+The [code for the collection view](https://github.com/defagos/SwiftUICollection) (< 200 LOC) and an example of use is available on GitHub. I even added a SPM manifest so that you can quickly test the collection in a project of your own. This does not mean the code is intended to be used as a library yet (it should be applied to a broader set of cases first), but feel free to use it any way you want.
 
-The [code for the collection view](https://github.com/defagos/SwiftUICollection) and an example of use is available on GitHub. I even added a SPM manifest so that you can quickly test the collection in a project of your own. This does not mean the code is intended to be used as a library yet, but feel free to use it any way you want.
+## Wrapping Up
+
+This article is the last one in this series. I hope you enjoyed the ride and learned a few things!

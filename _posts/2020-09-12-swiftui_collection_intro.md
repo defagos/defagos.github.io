@@ -12,5 +12,5 @@ When evaluating SwiftUI as a viable option for porting our [iOS apps](https://gi
 I thought sharing my experience could probably be helpful to other developers who might be considering SwiftUI for their own apps as well. Since the material to be covered is larger than initially expected, I opted out for a series of articles requiring some prior SwiftUI and UIKit knowledge, but which I tried to keep accessible for newcomers as well:
 
 - [Part 1: Mimicking Collections in SwiftUI](/swiftui_collection_part1): A mild introduction into the world of collection aleternatives in SwiftUI (and associated delusions).
-- [Part 2: A SwiftUI Collection Prototype](/swiftui_collection_part2): Where we build a first working prototype of a SwiftUI collection from the ground up.
-- [Part 3: Focus Management and Polishing](/swiftui_collection_part3): Where we solve a few issues of the prototype implementation and implement focus management for tvOS.
+- [Part 2: SwiftUI Collection Implementation](/swiftui_collection_part2): Where we build a first working SwiftUI collection from the ground up.
+- [Part 3: Fixes and Focus Management](/swiftui_collection_part3): Where we solve issues with the implementation and implement focus management for tvOS.

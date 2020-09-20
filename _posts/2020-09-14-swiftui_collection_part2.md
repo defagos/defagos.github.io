@@ -1,7 +1,9 @@
 ---
 layout: post
-title: Building a Collection For SwiftUI (Part 2) - A SwiftUI Collection Prototype
+title: Building a Collection For SwiftUI (Part 2) - SwiftUI Collection Implementation
 ---
+
+_This article is part 2 in the [Buiilding a Collection For SwiftUI](/swiftui_collection_intro) series_.
 
 Faced with the inability to reach an acceptable level of performance with grid layouts made of simple SwiftUI building blocks, I decided to roll my own solution. 
 
@@ -461,117 +463,9 @@ Note that, unlike cells defined in UIKit, there is no need for clients of our `C
 
 iOS and tvOS 14 provide a [new `CellRegistration` API](https://developer.apple.com/documentation/uikit/uicollectionview/cellregistration) but, to keep things simple, we still use the old cell registration and dequeuing API, so that the implementation is compatible with iOS and tvOS 13 without the use of availability macros. The iOS and tvOS 14 modern implementation is left as an exercise for the reader.
 
-## Complete implementation
+## Example of a Grid Layout
 
-Bringing everything together, we now have a first working implementation of a `CollectionView` in SwiftUI, powered by `UICollectionView`:
-
-{% highlight swift %}
-import SwiftUI
-
-struct CollectionRow<Section: Hashable, Item: Hashable>: Hashable {
-    let section: Section
-    let items: [Item]
-}
-
-struct CollectionView<Section: Hashable, Item: Hashable, Cell: View>: UIViewRepresentable {
-    private class HostCell: UICollectionViewCell {
-        private var hostController: UIHostingController<Cell>?
-            
-        override func prepareForReuse() {
-            if let hostView = hostController?.view {
-                hostView.removeFromSuperview()
-            }
-            hostController = nil
-        }
-            
-        var hostedCell: Cell? {
-            willSet {
-                guard let view = newValue else { return }
-                hostController = UIHostingController(rootView: view)
-                if let hostView = hostController?.view {
-                    hostView.frame = contentView.bounds
-                    hostView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-                    contentView.addSubview(hostView)
-                }
-            }
-        }
-    }
-    
-    class Coordinator {
-        fileprivate typealias DataSource = UICollectionViewDiffableDataSource<Section, Item>
-        
-        fileprivate var dataSource: DataSource? = nil
-        fileprivate var sectionLayoutProvider: ((Int, NSCollectionLayoutEnvironment) -> NSCollectionLayoutSection)?
-        fileprivate var rowsHash: Int? = nil
-    }
-    
-    let rows: [CollectionRow<Section, Item>]
-    let sectionLayoutProvider: (Int, NSCollectionLayoutEnvironment) -> NSCollectionLayoutSection
-    let cell: (IndexPath, Item) -> Cell
-    
-    init(rows: [CollectionRow<Section, Item>],
-         sectionLayoutProvider: @escaping (Int, NSCollectionLayoutEnvironment) -> NSCollectionLayoutSection,
-         @ViewBuilder cell: @escaping (IndexPath, Item) -> Cell) {
-        self.rows = rows
-        self.sectionLayoutProvider = sectionLayoutProvider
-        self.cell = cell
-    }
-    
-    private func layout(context: Context) -> UICollectionViewLayout {
-        return UICollectionViewCompositionalLayout { sectionIndex, layoutEnvironment in
-            return context.coordinator.sectionLayoutProvider!(sectionIndex, layoutEnvironment)
-        }
-    }
-    
-    private func snapshot() -> NSDiffableDataSourceSnapshot<Section, Item> {
-        var snapshot = NSDiffableDataSourceSnapshot<Section, Item>()
-        for row in rows {
-            snapshot.appendSections([row.section])
-            snapshot.appendItems(row.items, toSection: row.section)
-        }
-        return snapshot
-    }
-    
-    private func reloadData(context: Context, animated: Bool = false) {
-        let coordinator = context.coordinator
-        coordinator.sectionLayoutProvider = self.sectionLayoutProvider
-        
-        guard let dataSource = coordinator.dataSource else { return }
-        
-        let rowsHash = rows.hashValue
-        if coordinator.rowsHash != rowsHash {
-            dataSource.apply(snapshot(), animatingDifferences: animated)
-            coordinator.rowsHash = rowsHash
-        }
-    }
-    
-    func makeCoordinator() -> Coordinator {
-        return Coordinator()
-    }
-    
-    func makeUIView(context: Context) -> UICollectionView {
-        let cellIdentifier = "hostCell"
-        
-        let collectionView = UICollectionView(frame: .zero, collectionViewLayout: layout(context: context))
-        collectionView.register(HostCell.self, forCellWithReuseIdentifier: cellIdentifier)
-        
-        context.coordinator.dataSource = Coordinator.DataSource(collectionView: collectionView) { collectionView, indexPath, item in
-            let hostCell = collectionView.dequeueReusableCell(withReuseIdentifier: cellIdentifier, for: indexPath) as? HostCell
-            hostCell?.hostedCell = cell(indexPath, item)
-            return hostCell
-        }
-        
-        reloadData(context: context)
-        return collectionView
-    }
-    
-    func updateUIView(_ uiView: UICollectionView, context: Context) {
-        reloadData(context: context, animated: true)
-    }
-}
-{% endhighlight %}
-
-Using this collection view we can implement a shelf-like tvOS layout like we did in the first part of this article:
+Bringing everything together, we now have a first working implementation of a `CollectionView` in SwiftUI, powered by `UICollectionView`. The complete source code will be provided [in the third and last article in this series](/swiftui_collection_part3), but let us have a look at how a shelf-like layout like the one we discussed in [part 1](/swiftui_collection_part1) is implemented with the API we have defined throughout this article, on tvOS:
 
 {% highlight swift %}
 import SwiftUI
@@ -616,14 +510,18 @@ struct Shelf: View {
 }
 {% endhighlight %}
 
-If you run this application on tvOS you will quickly run into a few issues, though:
+The formalism is quite elegant and compact but, when actually running the code above, we find a few more issues:
 
-- When scrolling a shelf horizontally, cells which appear are not properly sized.
-- On tvOS buttons do not exhibit the `CardButtonStyle` appearance when focused.
+- When scrolling a shelf horizontally, cells which appear from the edges are not properly sized.
+- Buttons do not exhibit the `CardButtonStyle` appearance when focused.
 
 ![SwiftUI CollectionView](/images/first_swiftui_collection.jpg)
 
-The final article in this series discusses how these issues can be solved.
+## Wrapping Up
 
-Read next: [Part 3: Focus Management and Polishing](/swiftui_collection_part3)
+In this lengthy article we have implemented a working collection view for SwiftUI, based on `UICollectionView`. We have designed an API to layout the collection itself as well as its individual cells. We also have ensured performance is on par with what we expect from a usual `UIKit` collection view, thus addressing our initial problem.
+
+The end result, while certainly promising, still suffers from a few issues we will solve in the next and final article in this series.
+
+Read next: [Part 3: Fixes and Focus Management](/swiftui_collection_part3)
 
