@@ -14,3 +14,5 @@ I thought sharing my experience could probably be helpful to other developers wh
 - [Part 1: Mimicking Collections in SwiftUI](/swiftui_collection_part1): A mild introduction into the world of collection aleternatives in SwiftUI (and associated delusions).
 - [Part 2: SwiftUI Collection Implementation](/swiftui_collection_part2): Where we build a first working SwiftUI collection from the ground up.
 - [Part 3: Fixes and Focus Management](/swiftui_collection_part3): Where we solve issues with the implementation and implement focus management for tvOS.
+
+The [source code](https://github.com/defagos/SwiftUICollection) for this series is available if you want to have a look at the implementation while reading the articles.
