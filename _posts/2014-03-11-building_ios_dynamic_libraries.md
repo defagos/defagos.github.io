@@ -15,7 +15,7 @@ Instead of adding the categories to the projects, the LLDB-QuickLook categories 
 
 The approach described below can be applied to your own LLDB debugging helpers, which can be packaged as a dynamic library shared between your projects.
 
-# Enabling iOS dynamic library compilation in Xcode
+## Enabling iOS dynamic library compilation in Xcode
 
 Apple does not officially provide a way to create dynamic libraries for iOS, since their use does not comply with App Store rules. Xcode unsurprisingly complains when we try to build one:
 
@@ -40,7 +40,7 @@ You can still enable iOS dynamic library support by editing some Xcode configura
 
 Restart Xcode to take the changes into account.
 
-# Building an LLDB-Quicklook dynamic library
+## Building an LLDB-Quicklook dynamic library
 
 To build a dynamic library we create a Mac OS X Cocoa Library project, setting its type to _dynamic_. We remove all useless stuff, set its SDK to _Latest iOS_ and add LLDB-QuickLook source files. The resulting project can be found on my [Github page](https://github.com/defagos/LLDB-QuickLook/tree/dylib), on a branch called `dylib`.
 
@@ -52,7 +52,7 @@ Checkout the repository, switch to the `dylib` branch and run the following comm
 	 
 The dynamic library can be found in the `build` directory, and is called `LLDB-QuickLook.dylib`.
 
-# Loading the LLDB-QuickLook dynamic library into LLDB
+## Loading the LLDB-QuickLook dynamic library into LLDB
 
 To load the `LLDB-QuickLook.dylib` dynamic library when LLDB starts, copy it somewhere (e.g. `~/Library/lldb/lib/LLDB-QuickLook.dylib`) and add the following line to your `~/.lldbinit` configuration file:
 
@@ -68,7 +68,7 @@ To run the `quick_look_load_sim` command early when an application has been atta
 
 There is hope pending breakpoints [might be added](http://prod.lists.apple.com/archives/xcode-users/2013/Feb/msg00069.html) to LLDB in the future, in which case this trick could be replaced with pending breakpoints defined in the `~/.lldbinit` file.
 
-# QuickLooking
+## QuickLooking
 
 Follow the [LLDB-QuickLook installation steps](https://github.com/ryanolsonk/LLDB-QuickLook/blob/master/README.md) and add the following commands to your `~/.lldbinit` file:
 	
@@ -85,7 +85,7 @@ QuickLook should open and display the string.
 
 ![QuickLook example](/images/lldb_quick_look_example.jpg)
 
-# Wrapping up
+## Wrapping up
 
 This post discussed how debugging code can be packaged as a dynamic library, and how it can be automatically loaded when an application is debugged in the iOS simulator. By applying the same strategy, you could package your own LLDB debugging helpers as dynamic libraries which can be shared between your projects, without having to modify them. Have fun!
 

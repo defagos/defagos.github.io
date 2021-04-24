@@ -12,7 +12,7 @@ _This article is part 1 in the [Building a Collection For SwiftUI](/swiftui_coll
 * TOC
 {:toc}
 
-# Basic Grid Layouts in SwiftUI
+## Basic Grid Layouts in SwiftUI
 
 Think about the TV, App Store or Netflix apps. They present their content in horizontally scrollable shelves, a layout fairly common among iOS and tvOS apps.
 
@@ -69,7 +69,7 @@ The real downside of the above SwiftUI implementation is that, unlike `UICollect
 
 Surely this is not optimal from a performance and memory consumption point of view, and fortunately Apple's engineers probably thought the same.
 
-# Better SwiftUI Grid Layouts With Lazy Stacks
+## Better SwiftUI Grid Layouts With Lazy Stacks
 
 This year SwiftUI introduces lazy variants of stacks in iOS and tvOS 14. Seems like magic when you watch [WWDC 2020 10031](https://developer.apple.com/wwdc20/10031) where they are presented in action, but you still have to be somewhat careful about which stacks you promote to laziness.
 
@@ -120,12 +120,12 @@ When profiled with Instruments we clearly see an improvement:
 
 Pretty nice until now, isn't it?
 
-## Remark
+### Remark
 {:.no_toc}
 
 Though iOS and tvOS 14 also introduce lazy grids with similar behavior, those are not suited for our shelf-based layout as they currently do not support independently scrollable rows.
 
-# The Problem with SwiftUI Stack-based Grid Layouts
+## The Problem with SwiftUI Stack-based Grid Layouts
 
 What is not immediately apparant with the code above is that, while you can easily navigate this grid on iOS by swiping the screen, you cannot  do the same on tvOS. There is namely no [focusable](https://developer.apple.com/design/human-interface-guidelines/tvos/app-architecture/focus-and-selection) item in the layout code above, therefore no way to navigate the collection on Apple TV.
 
@@ -186,7 +186,7 @@ We can now navigate the collection and enjoy the native tvOS behavior we expect 
 
 To verify this assumption it suffices to tweak the code above and to load 20 rows of 50 items instead. If you attempt to run the result on an Apple TV device you will clearly experience severe issues. Scrolling performance namely degrades fast with increasing number of items and the user experience becomes horrendous, even with the basic cells we display. You can also notice that lazy stacks do not work well on tvOS, as they force the focus to move one item at a time near collection boundaries.
 
-## Remark
+### Remark
 {:.no_toc}
 
 If you run the code above on iOS (without the card button style which is available for tvOS only), the experience is better overall:
@@ -196,7 +196,7 @@ If you run the code above on iOS (without the card button style which is availab
 
 Without having the time to dig into what actually makes things worse on tvOS, I conjectured these issues are related to tvOS focus changes, which trigger `@Environment` updates probably leading to additional layout work. This is something we will discuss again in [part 2 of this article series](/swiftui_collection_part2) but, if I am correct, I think this problem can likely be solved in a future SwiftUI release. Still we must find a solution in the meantime.
 
-# Wrapping Up
+## Wrapping Up
 
 SwiftUI grid-based layouts made of nested stacks and scroll views currently suffer from major performance issues. On tvOS these performance issues are so significant that attempting to load a few hundred items leads to a poor user experience. Loading thousands of items can bring an Apple TV to its knees.
 

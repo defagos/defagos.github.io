@@ -10,7 +10,7 @@ _This article is part 2 in the [Building a Collection For SwiftUI](/swiftui_coll
 * TOC
 {:toc}
 
-# Implementation Strategies and Requirements
+## Implementation Strategies and Requirements
 
 Two possible implementation strategies can be considered when implementing a SwiftUI collection:
 
@@ -29,7 +29,7 @@ I added a few implementation constraints to ensure the custom collection view fe
 
 Let us start by wrapping a UIKit collection into a SwiftUI view.
 
-# Wrapping UIKit Collection View Into SwiftUI
+## Wrapping UIKit Collection View Into SwiftUI
 
 A great feature of SwiftUI is the ease with which you can embed UIKit views in SwiftUI and conversely. This makes it easy to adopt SwiftUI where you can in your app, while still using good old UIKit where SwiftUI is lagging behind in functionality or performance.
 
@@ -58,7 +58,7 @@ struct CollectionView: UIViewRepresentable {
 
 In our case  the actual `UICollectionView` instance must be created in `makeUIView(context:)`, but this requires a collection view layout to be provided at initialization time first.
 
-# Providing a Collection View Layout
+## Providing a Collection View Layout
 
 With iOS 13 and tvOS 13 collection view layouts can be provided in a general declarative way through [compositional layouts](https://developer.apple.com/videos/play/wwdc2019/215). The obtained layout code is expressive and supports advanced features like [independently scrollable sections](https://developer.apple.com/documentation/uikit/uicollectionlayoutsectionorthogonalscrollingbehavior).
 
@@ -88,7 +88,7 @@ Compositional layouts are defined using sections, each section containing groups
 
 Before we proceed with finding how to actually provide section layout definitions, let us first discuss how data will be loaded into the collection.
 
-# Loading Data Into the Collection
+## Loading Data Into the Collection
 
 Since iOS 13 and tvOS 13, and in addition to compositional layouts, UIKit provides [diffable data sources](https://developer.apple.com/videos/play/wwdc2019/220) to incrementally update data associated with a collection and animate changes. Such data sources ensure that cells and underlying data stay consistent, avoiding crashes ususally associated with mismatches between data and layout.
 
@@ -137,7 +137,7 @@ struct CollectionView<Section: Hashable, Item: Hashable>: UIViewRepresentable {
 
 Types for the generic parameters will be automatically inferred by the Swift compiler when assigning rows to the collection. Still these rows are received by `CollectionView` and must be represented by a `UICollectionView`. Now is therefore the time to actually implement the diffable data source we need.
 
-# Data Source and Coordinator
+## Data Source and Coordinator
 
 A `UICollectionView` requires a data source to provide the data it displays. Instantiating a diffable data source containing `Item`s in `Section`s and displaying them in a `collectionView` is simple:
 
@@ -179,7 +179,7 @@ struct CollectionView<Section: Hashable, Item: Hashable>: UIViewRepresentable {
 
 Now that we have a data source properly created and retained for the lifetime of the collection view, we can discuss how to fill it with data.
 
-# Data Source Snapshots
+## Data Source Snapshots
 
 Updating a diffable data source is made in increments. When data changes it suffices to build a new data snapshot and apply it:
 
@@ -210,7 +210,7 @@ There are two performance issues associated with the above code, though:
 
 Since performance issues are what motivated the creation of a custom `CollectionView` in the first place, we must fix these identified problems before going any further.
 
-# Solving Performance Issues
+## Solving Performance Issues
 
 To fix performance issues associated with the first snapshot, it suffices to factor out the corresponding code into a `reloadData(context:animated:)` method, called with or without animation depending on whether we are creating or updating the view:
 
@@ -275,7 +275,7 @@ With this simple trick performance problems on tvOS are eliminated, even with la
 
 We now almost have a first working `CollectionView` implementation. We only need to be able to configure its layout and cells when creating it.
 
-# Collection Layout Support
+## Collection Layout Support
 
 At the beginning of this article we instantiated a `UICollectionViewCompositionalLayout` but did not provide any meaningful implementation for it:
 
@@ -372,7 +372,7 @@ This way we ensure the section layout provider is kept up-to-date between view u
 
 With layout definition needs covered let us finish by discussing cell layout and display.
 
-# Cell Layout
+## Cell Layout
 
 Our `CollectionView` first implementation is almost finished, but the cell provider closure of our `UICollectionViewDiffableDataSource` is still missing. Recall that we don't want to layout cells with UIKit code but with SwiftUI declarative syntax. How should we now proceed?
 
@@ -398,7 +398,7 @@ struct CollectionView<Section: Hashable, Item: Hashable, Cell: View>: UIViewRepr
 
 The `@ViewBuilder` syntax requires a dedicated initializer, as `@ViewBuilder` can only appear as a parameter-attribute. Note that Swift infers the type of the cell body based on the view builder block, forcing us to add `Cell` as additional parameter of the `CollectionView` generic type list.
 
-# Cell Display
+## Cell Display
 
 Cells whose layout is defined with SwiftUI code are ultimately displayed by a `UICollectionView` and thus must be wrapped for display by UIKit. This is achieved by using `UIHostingController` and a simple host `UICollectionViewCell`:
 
@@ -462,12 +462,12 @@ struct CollectionView<Section: Hashable, Item: Hashable>: UIViewRepresentable {
 
 Note that, unlike cells defined in UIKit, there is no need for clients of our `CollectionView` to mess with cell class registrations and reuse identifiers. Only one cell identifier is required and managed internally. All cells provided in SwiftUI namely share the same `Cell` generic type parameter, whose actual value is filled in by the Swift compiler based on what is inside the view builder closure.
 
-## Remark
+### Remark
 {:.no_toc}
 
 iOS and tvOS 14 provide a [new `CellRegistration` API](https://developer.apple.com/documentation/uikit/uicollectionview/cellregistration) but, to keep things simple, we still use the old cell registration and dequeuing API, so that the implementation is compatible with iOS and tvOS 13 without the use of availability macros. The iOS and tvOS 14 modern implementation is left as an exercise for the reader.
 
-# Example of a Grid Layout
+## Example of a Grid Layout
 
 Bringing everything together, we now have a first working implementation of a `CollectionView` in SwiftUI, powered by `UICollectionView`. The complete source code will be provided [in the third and last article in this series](/swiftui_collection_part3), but let us have a look at how a shelf-like layout like the one we discussed in [part 1](/swiftui_collection_part1) is implemented with the API we have defined throughout this article, on tvOS:
 
@@ -521,7 +521,7 @@ The formalism is quite elegant and compact but, when actually running the code a
 
 ![SwiftUI CollectionView](/images/first_swiftui_collection.jpg)
 
-# Wrapping Up
+## Wrapping Up
 
 In this lengthy article we have implemented a working collection view for SwiftUI, based on `UICollectionView`. We have designed an API to layout the collection itself as well as its individual cells. We also have ensured performance is on par with what we expect from a usual `UIKit` collection view, thus addressing our initial problem.
 

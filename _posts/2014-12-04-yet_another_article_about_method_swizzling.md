@@ -12,7 +12,7 @@ Implementing swizzling correctly is not easy, though, probably because it looks 
 
 The implementation discussed in this article may have issues of its own, but I do hope sharing it will help improve existing implementations, as well as mine. For this reason, do not regard these few words as a _Done right_ article, only as a small step towards hopefully better swizzling implementations. There is a correct way to swizzle methods, but it probably still remains to be found.
 
-# Function prototype
+## Function prototype
 
 Since the Objective-C runtime is a series of functions, I decided to implement swizzling as a function as well. Most existing implementations, for example the well-respected [JRSwizzle](https://github.com/rentzsch/jrswizzle), exchange `IMP`s associated with two selectors. Ultimately, though, method swizzling is about changing, not exchanging, which is why I prefer a function expecting an original `SEL` and an `IMP` arguments:
 
@@ -30,7 +30,7 @@ Moreover, using an `IMP` (in other words a C-function) instead of a selector imp
 
 The function above returns the original implementation, which must be properly cast and called from within the swizzling method implementation, so that the original behavior is preserved. If the method to swizzle is not implemented, I decided the function must do nothing and return `NULL`.
 
-# Issues in class hierarchies
+## Issues in class hierarchies
 
 When swizzling methods in class hierarchies, we must take extra care when the method we swizzle is not implemented by the class on which it is swizzled, but is implemented by one of its parents. For example, the `-awakeFromNib` method, declared and implemented at the `NSObject` level, is neither implemented by the `UIView` nor by the `UILabel` subclasses. When calling this method on an instance of any of theses classes, it is therefore the `NSObject` implementation which gets called:
 
@@ -52,7 +52,7 @@ and, after swizzling:
 
 No swizzling implementation I encountered correctly deals with this issue, [not even JRSwizzle](https://github.com/rentzsch/jrswizzle/issues/4). As should be clear from the last picture above, the solution to this problem is to ensure a method is always implemented by a class before swizzling it. If this is not the case, an implementation must be injected first, simply calling the super method counterpart. This way, all implementations will correctly be called after swizzling.
 
-# First implementation attempt
+## First implementation attempt
 
 Based on the above, I first implemented instance method swizzling as follows:
 
@@ -95,7 +95,7 @@ IMP class_swizzleClassSelector(Class clazz, SEL selector, IMP newImplementation)
 
 The `imp_implementationWithBlock` function is used as a trampoline to accomodate any kind of method prototype through a variable argument list `va_list`. The `super` method call is made by properly casting `objc_msgSendSuper`, available from `<objc/message.h>`. In order to prevent ARC from inserting incorrect memory management calls, the `self` parameter of the implementation block has been marked with `__unsafe_unretained`.
 
-# Large struct return values
+## Large struct return values
 
 As pointed out by [Peter Steinberger](https://twitter.com/steipete/status/540818091014627329) and [@__block](https://twitter.com/__block/status/540794469046812674) on Twitter, struct returns require special care on some architectures.
 
@@ -140,7 +140,7 @@ IMP class_swizzleSelector_stret(Class clazz, SEL selector, IMP newImplementation
 }
 {% endhighlight %}
 
-# Wrapping up: IMP-swizzling
+## Wrapping up: IMP-swizzling
 
 Having a separate `class_swizzleSelector_stret` function which must appropriately be called when large structs are returned is rather inconvenient. Fortunately, its implementation can be merged into `class_swizzleSelector` by checking return type size information for 32-bit architectures first. We obtain a single function for method swizzling with an `IMP`:
 
@@ -206,7 +206,7 @@ IMP class_swizzleSelector(Class clazz, SEL selector, IMP newImplementation)
 
 The `_stret` variants are not available on ARM 64, thus the extra preprocessor adornments.
 
-## Example of use
+### Example of use
 {:.no_toc}
 
 To swizzle a method, define a static C-function for the new implementation and call `class_swizzleSelector` or `class_swizzleClassSelector` to set it as new one. Save the original implementation into a function pointer matching the function signature, and make sure the new implementation calls it somehow:
@@ -252,7 +252,7 @@ static void swizzle_dealloc(__unsafe_unretained UILabel *self, SEL _cmd)
 
 Note that I added an extra `__unsafe_unretained` specifier to the `swizzle_dealloc` prototype to ensure ARC does not insert additional memory management calls. I also cheated by getting the `dealloc` selector with `sel_getUid`, since `@selector(dealloc)` cannot be used with ARC.
 
-# Block-swizzling
+## Block-swizzling
 
 Thanks to `imp_implementationWithBlock`, we can provide a block instead of an `IMP` for the new implementation:
 
@@ -272,7 +272,7 @@ IMP class_swizzleClassSelectorWithBlock(Class clazz, SEL selector, id newImpleme
 
 The block signature itself does not include the selector parameter, as specified in the `imp_implementationWithBlock` [documentation](https://developer.apple.com/library/mac/documentation/Cocoa/Reference/ObjCRuntimeRef/index.html).
 
-## Example of use
+### Example of use
 {:.no_toc}
 
 The above example can be rewritten using blocks, eliminating the need for static methods and function pointers:
@@ -307,7 +307,7 @@ The above example can be rewritten using blocks, eliminating the need for static
 
 Returned original implementations must be saved into `__block` variables to be accessible from within the corresponding implementation blocks.
 
-# Macros
+## Macros
 
 Some redundancy is found in both examples of use above, but can be eliminated by defining a few convenience macros:
 
@@ -338,7 +338,7 @@ Block-swizzling, on the other hand, has been turned into a pair of macros. This 
 
 Moreover, the block-swizzling macros declare a hidden scope where the selector `_cmd` and original implementation `_imp` are immediately available.
 
-## Example of use
+### Example of use
 {:.no_toc}
 
 The two previous examples can now be rewritten as follows:
@@ -396,6 +396,6 @@ respectively:
 
 I especially like the compactness of block-swizzling using macros. There is no need to define separate functions and method pointers, and the swizzled method implementation can be easily recognized, enclosed between the `Begin` and `End` macros.
 
-# Conclusion
+## Conclusion
 
 The implementation discussed in this article might not be optimal, but should cover most practical cases. It is available from my [CoconutKit framework](https://github.com/defagos/CoconutKit), with a comprehensive [test suite](https://github.com/defagos/CoconutKit/blob/f6d8d3486a2a201d0cda4657e681c3d56cf7a261/CoconutKit-tests/Sources/Core/HLSRuntimeTestCase.m#L1277-L1370), or from the following [gist](https://gist.github.com/defagos/1312fec96b48540efa5c). Have fun with method swizzling!
