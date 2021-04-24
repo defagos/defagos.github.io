@@ -10,7 +10,7 @@ _This article is part 3 in the [Building a Collection For SwiftUI](/swiftui_coll
 * TOC
 {:toc}
 
-## Fixing Cell Frames
+# Fixing Cell Frames
 
 When running our shelf example, cells initially on screen have correct frames, while cells emerging from screen edges do not:
 
@@ -75,7 +75,7 @@ With this simple trick cell frames are now correct:
 
 ![Fixed frame](/images/collection_fixed_cell_size.jpg)
 
-## Supporting Focus on tvOS
+# Supporting Focus on tvOS
 
 In the shelf example discussed at the end of [part 2 of this article series](/swiftui_collection_part2), using the new tvOS 14 `CardButtonStyle`, the usual focused appearance is not applied when running the application. This is actually expected behavior, as the cell itself is focusable and the button style [is not meant to receive focus in such cases](https://developer.apple.com/videos/play/wwdc2020/10042).
 
@@ -83,7 +83,7 @@ In fact, SwiftUI buttons wrapped in focusable cells cannot be triggered at all. 
 
 One way to disable focus for a cell is by implementing `canBecomeFocused` on the cell class itself and return `false`. This seems to work well in general, but this strategy breaks when data source changes are applied with animations. In such cases the focus often spins out of control on tvOS. We therefore need a better approach.
 
-### UICollectionView and Animated Reloads
+## UICollectionView and Animated Reloads
 {:.no_toc}
 
 To understand this buggy behavior we need to figure the expected behavior of a `UICollectionView` when an animated reload occurs. To find the answer I simply implemented a basic collection in UIKit, with a simple data source and focusable `UICollectionViewCell`s:
@@ -92,7 +92,7 @@ To understand this buggy behavior we need to figure the expected behavior of a `
 
 This user experience sets our goal for our SwiftUI `CollectionView` focus behavior.
 
-### Disabling and Enabling Focus
+## Disabling and Enabling Focus
 {:.no_toc}
 
 Disabling focus on cell classes directly does not work, but a similar result can be achieved thanks to `UICollectionViewDelegate`, which provides a dedicated delegate method to decide at any time whether a cell must be focusable or not. We therefore make our `Coordinator` conform to this protocol and introduce an internal flag to enable or disable focus for all cells when we want:
@@ -141,7 +141,7 @@ With these changes the focus now appears as expected and the focused item is fol
 
 ![Fixed focus](/images/collection_fixed_focus.jpg)
 
-### Remark
+## Remark
 {:.no_toc}
 
 During my investigations I worked with focusable cells for a while until I realized this was a bad idea. Here are a few more findings if you are interested. 
@@ -152,7 +152,7 @@ Finally, the pressed appearance (obtained for free with `CardButtonStyle`) requi
 
 For all these reasons I recommend avoiding focusable cells if you intend to wrap SwiftUI views within them.
 
-## Supporting Supplementary Views
+# Supporting Supplementary Views
 
 Supporting supplementary views is very similar to supporting cells. We simply introduce a dedicated view builder and a host view. As for cells, type inference requires the addition of a new `SupplementaryView `type parameter to the generic `CollectionView` type:
 
@@ -244,7 +244,7 @@ struct CollectionView<Section: Hashable, Item: Hashable, Cell: View, Supplementa
 
 Supplementary views must be added to your layout and defined within the corresponding view builder. Refer to the source code (link at the end of this article) for an example of use.
 
-## Additional Considerations
+# Additional Considerations
 
 Before we wrap things up, I just wanted to mention a few important behaviors related to this implementation:
 
@@ -259,11 +259,11 @@ Further improvements could be made and are left as exercise for the reader:
 - Use decoration views to add focus guides for navigation between rows of different length on tvOS.
 - Port this collection to macOS and `NSCollectionView`. I read somewhere that nested stacks and scroll view performance was poor on macOS as well, probably because macOS has focus support for keyboard navigation. It is therefore likely that the approach discussed for tvOS can be applied to macOS in a similar way.
 
-## Source Code
+# Source Code
 
 The [code for the collection view](https://github.com/defagos/SwiftUICollection) (< 200 LOC) and an example of use is available on GitHub. I even added a SPM manifest so that you can quickly test the collection in a project of your own. This does not mean the code is intended to be used as a library yet (it should be applied to a broader set of cases first), but feel free to use it any way you want.
 
-## Wrapping Up
+# Wrapping Up
 
 This article is the last one in this series. I hope you enjoyed the ride and learned a few things! 
 
