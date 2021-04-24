@@ -5,6 +5,9 @@ title: Yet another article about method swizzling
 
 Many Objective-C developers disregard method swizzling, considering it a bad practice. I don't like method swizzling, I love it. Of course it is risky and can hurt you like a bullet. Carefully done, though, it makes it possible to fill annoying gaps in system frameworks which would be impossible to fill otherwise. From simply providing a convenient way to [track the parent popover controller of a view controller](https://github.com/defagos/CoconutKit/blob/f6d8d3486a2a201d0cda4657e681c3d56cf7a261/CoconutKit/Sources/ViewControllers/UIPopoverController+HLSExtensions.m#L16-L74) to implementing [Cocoa-like bindings on iOS](https://github.com/defagos/CoconutKit/blob/f6d8d3486a2a201d0cda4657e681c3d56cf7a261/CoconutKit/Sources/Bindings/UIView+HLSViewBinding.m#L237-L255), method swizzling has always been an invaluable tool to me.
 
+* TOC
+{:toc}
+
 Implementing swizzling correctly is not easy, though, probably because it looks straightforward at first (all is needed is a few Objective-C runtime function calls, after all). Though the Web is [crawling with articles](https://www.google.ch/webhp?sourceid=chrome-instant&ion=1&espv=2&ie=UTF-8#q=objective-c%20swizzling%20right) about the right way to swizzle a method, I sadly found issues with all of them.
 
 The implementation discussed in this article may have issues of its own, but I do hope sharing it will help improve existing implementations, as well as mine. For this reason, do not regard these few words as a _Done right_ article, only as a small step towards hopefully better swizzling implementations. There is a correct way to swizzle methods, but it probably still remains to be found.
@@ -13,13 +16,13 @@ The implementation discussed in this article may have issues of its own, but I d
 
 Since the Objective-C runtime is a series of functions, I decided to implement swizzling as a function as well. Most existing implementations, for example the well-respected [JRSwizzle](https://github.com/rentzsch/jrswizzle), exchange `IMP`s associated with two selectors. Ultimately, though, method swizzling is about changing, not exchanging, which is why I prefer a function expecting an original `SEL` and an `IMP` arguments:
 
-{% highlight objective-c %}
+{% highlight objc %}
 IMP class_swizzleSelector(Class clazz, SEL selector, IMP newImplementation);
 {% endhighlight %} 
 
 instead of two `SEL` arguments:
 
-{% highlight objective-c %}
+{% highlight objc %}
 IMP class_swizzleSelectorWithSelector(Class clazz, SEL selector, SEL swizzlingSelector); 
 {% endhighlight %}
 
@@ -31,21 +34,21 @@ The function above returns the original implementation, which must be properly c
 
 When swizzling methods in class hierarchies, we must take extra care when the method we swizzle is not implemented by the class on which it is swizzled, but is implemented by one of its parents. For example, the `-awakeFromNib` method, declared and implemented at the `NSObject` level, is neither implemented by the `UIView` nor by the `UILabel` subclasses. When calling this method on an instance of any of theses classes, it is therefore the `NSObject` implementation which gets called:
 
-![Standard hierarchy](/images/standard_hierarchy.png)
+![Standard hierarchy](/images/standard_hierarchy.jpg)
 
 If we naively swizzle the `-awakeFromNib` method both at the `UIView` and `UILabel` levels, we get the following result:
 
-![Standard hierarchy, swizzled](/images/standard_hierarchy_swizzled.png)
+![Standard hierarchy, swizzled](/images/standard_hierarchy_swizzled.jpg)
 
 As we see, when `-[UILabel awakeFromNib]` is now called, the swizzled `UIView `implementation does not get called, which is not what is expected from proper swizzling.
 
 The situation would be completely different if the `-awakeFromNib` method was implemented on `UIView` and `UILabel`. If this was the case, and if each implementation properly called the `super` method counterpart first, we would namely obtain:
 
-![Tweaked hierarchy](/images/tweaked_hierarchy.png)
+![Tweaked hierarchy](/images/tweaked_hierarchy.jpg)
 
 and, after swizzling:
 
-![Tweaked hierarchy, swizzled](/images/tweaked_hierarchy_swizzled.png)
+![Tweaked hierarchy, swizzled](/images/tweaked_hierarchy_swizzled.jpg)
 
 No swizzling implementation I encountered correctly deals with this issue, [not even JRSwizzle](https://github.com/rentzsch/jrswizzle/issues/4). As should be clear from the last picture above, the solution to this problem is to ensure a method is always implemented by a class before swizzling it. If this is not the case, an implementation must be injected first, simply calling the super method counterpart. This way, all implementations will correctly be called after swizzling.
 
@@ -53,7 +56,7 @@ No swizzling implementation I encountered correctly deals with this issue, [not 
 
 Based on the above, I first implemented instance method swizzling as follows:
 
-{% highlight objective-c %}
+{% highlight objc linenos %}
 #import <objc/runtime.h>
 #import <objc/message.h>
 
@@ -83,7 +86,7 @@ IMP class_swizzleSelector(Class clazz, SEL selector, IMP newImplementation)
 {% endhighlight %}
 For class method swizzling, it suffices to call the above function on a metaclass:
 
-{% highlight objective-c %}
+{% highlight objc linenos %}
 IMP class_swizzleClassSelector(Class clazz, SEL selector, IMP newImplementation)
 {
     return class_swizzleSelector(object_getClass(clazz), selector, newImplementation);
@@ -102,7 +105,7 @@ For method returning large structs, we need the `imp_implementationWithBlock` fu
 
 For large struct returns, instead of calling the `class_swizzleSelector` function above, we therefore must call the following `class_swizzleSelector_stret` function:
 
-{% highlight objective-c %}
+{% highlight objc linenos %}
 #import <objc/runtime.h>
 #import <objc/message.h>
 
@@ -141,7 +144,7 @@ IMP class_swizzleSelector_stret(Class clazz, SEL selector, IMP newImplementation
 
 Having a separate `class_swizzleSelector_stret` function which must appropriately be called when large structs are returned is rather inconvenient. Fortunately, its implementation can be merged into `class_swizzleSelector` by checking return type size information for 32-bit architectures first. We obtain a single function for method swizzling with an `IMP`:
 
-{% highlight objective-c %}
+{% highlight objc linenos %}
 #import <objc/runtime.h>
 #import <objc/message.h>
 
@@ -204,10 +207,11 @@ IMP class_swizzleSelector(Class clazz, SEL selector, IMP newImplementation)
 The `_stret` variants are not available on ARM 64, thus the extra preprocessor adornments.
 
 ## Example of use
+{:.no_toc}
 
 To swizzle a method, define a static C-function for the new implementation and call `class_swizzleSelector` or `class_swizzleClassSelector` to set it as new one. Save the original implementation into a function pointer matching the function signature, and make sure the new implementation calls it somehow:
 
-{% highlight objective-c %}
+{% highlight objc linenos %}
 static id (*initWithFrame)(id, SEL, CGRect) = NULL;
 static void (*awakeFromNib)(id, SEL) = NULL;
 static void (*dealloc)(__unsafe_unretained id, SEL) = NULL;
@@ -252,7 +256,7 @@ Note that I added an extra `__unsafe_unretained` specifier to the `swizzle_deall
 
 Thanks to `imp_implementationWithBlock`, we can provide a block instead of an `IMP` for the new implementation:
 
-{% highlight objective-c %}
+{% highlight objc linenos %}
 IMP class_swizzleSelectorWithBlock(Class clazz, SEL selector, id newImplementationBlock)
 {
     IMP newImplementation = imp_implementationWithBlock(newImplementationBlock);
@@ -269,10 +273,11 @@ IMP class_swizzleClassSelectorWithBlock(Class clazz, SEL selector, id newImpleme
 The block signature itself does not include the selector parameter, as specified in the `imp_implementationWithBlock` [documentation](https://developer.apple.com/library/mac/documentation/Cocoa/Reference/ObjCRuntimeRef/index.html).
 
 ## Example of use
+{:.no_toc}
 
 The above example can be rewritten using blocks, eliminating the need for static methods and function pointers:
 
-{% highlight objective-c %}
+{% highlight objc linenos %}
 @implementation UILabel (SwizzlingExamples)
 
 + (void)load
@@ -306,7 +311,7 @@ Returned original implementations must be saved into `__block` variables to be a
 
 Some redundancy is found in both examples of use above, but can be eliminated by defining a few convenience macros:
 
-{% highlight objective-c %}
+{% highlight objc linenos %}
 #define SwizzleSelector(clazz, selector, newImplementation, pPreviousImplementation) \
     (*pPreviousImplementation) = (__typeof((*pPreviousImplementation)))class_swizzleSelector((clazz), (selector), (IMP)(newImplementation))
 
@@ -334,10 +339,11 @@ Block-swizzling, on the other hand, has been turned into a pair of macros. This 
 Moreover, the block-swizzling macros declare a hidden scope where the selector `_cmd` and original implementation `_imp` are immediately available.
 
 ## Example of use
+{:.no_toc}
 
 The two previous examples can now be rewritten as follows:
 
-{% highlight objective-c %}
+{% highlight objc linenos %}
 @implementation UILabel (SwizzlingExamples)
 
 // Function pointers and static functions, as defined above
@@ -354,7 +360,7 @@ The two previous examples can now be rewritten as follows:
 
 respectively:
 
-{% highlight objective-c %}
+{% highlight objc linenos %}
 @implementation UILabel (SwizzlingExamples)
 
 + (void)load

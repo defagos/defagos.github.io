@@ -7,6 +7,9 @@ In [part 2 of this article series](/swiftui_collection_part2) we implemented a f
 
 _This article is part 3 in the [Building a Collection For SwiftUI](/swiftui_collection_intro) series_.
 
+* TOC
+{:toc}
+
 ## Fixing Cell Frames
 
 When running our shelf example, cells initially on screen have correct frames, while cells emerging from screen edges do not:
@@ -27,7 +30,7 @@ To briefly sketch the theory behind dynamic subclassing, consider you have an ob
 
 In our case, we can provide the missing opt-in behavior we need as an extension on `UIHostingController`, applied by dynamically changing the hosting view class to a subclass ignoring safe area insets:
 
-{% highlight swift %}
+{% highlight swift linenos %}
 extension UIHostingController {
     convenience public init(rootView: Content, ignoreSafeArea: Bool) {
         self.init(rootView: rootView)
@@ -64,7 +67,7 @@ extension UIHostingController {
 
 This way we only apply a change of behavior to those `UIHostingController` instances for which safe area insets must not be taken into account, for example in our `HostCell` implementation:
 
-{% highlight swift %}
+{% highlight swift linenos %}
 hostController = UIHostingController(rootView: view, ignoreSafeArea: true)
 {% endhighlight %}
 
@@ -81,6 +84,7 @@ In fact, SwiftUI buttons wrapped in focusable cells cannot be triggered at all. 
 One way to disable focus for a cell is by implementing `canBecomeFocused` on the cell class itself and return `false`. This seems to work well in general, but this strategy breaks when data source changes are applied with animations. In such cases the focus often spins out of control on tvOS. We therefore need a better approach.
 
 ### UICollectionView and Animated Reloads
+{:.no_toc}
 
 To understand this buggy behavior we need to figure the expected behavior of a `UICollectionView` when an animated reload occurs. To find the answer I simply implemented a basic collection in UIKit, with a simple data source and focusable `UICollectionViewCell`s:
 - On tvOS I could observe that the focused item is followed when data source changes are animated. The focus never spins out of control during reloads. There is still a minor issue with the focused appearance being lost after the animation ends (likely a `UICollectionView` bug), but it suffices to swipe the remote again to have a nearby item focused. 
@@ -89,10 +93,11 @@ To understand this buggy behavior we need to figure the expected behavior of a `
 This user experience sets our goal for our SwiftUI `CollectionView` focus behavior.
 
 ### Disabling and Enabling Focus
+{:.no_toc}
 
 Disabling focus on cell classes directly does not work, but a similar result can be achieved thanks to `UICollectionViewDelegate`, which provides a dedicated delegate method to decide at any time whether a cell must be focusable or not. We therefore make our `Coordinator` conform to this protocol and introduce an internal flag to enable or disable focus for all cells when we want:
 
-{% highlight swift %}
+{% highlight swift linenos %}
 public struct CollectionView<Section: Hashable, Item: Hashable, Cell: View>: UIViewRepresentable {
     public class Coordinator: NSObject, UICollectionViewDelegate {
         // ...
@@ -108,7 +113,7 @@ public struct CollectionView<Section: Hashable, Item: Hashable, Cell: View>: UIV
 
 We can now enable `UICollectionView` cell focus during reloads, letting the collection view correctly follow the currently focused item. The rest of the time cells must not be focusable. We strive to enable focus for as little time as possible, and forcing a focus update before restting the flag to its nominal value is sufficient to achieve proper behavior:
 
-{% highlight swift %}
+{% highlight swift linenos %}
 public struct CollectionView<Section: Hashable, Item: Hashable, Cell: View>: UIViewRepresentable {
     private func reloadData(in collectionView: UICollectionView, context: Context, animated: Bool = false) {
         let coordinator = context.coordinator
@@ -137,6 +142,7 @@ With these changes the focus now appears as expected and the focused item is fol
 ![Fixed focus](/images/collection_fixed_focus.jpg)
 
 ### Remark
+{:.no_toc}
 
 During my investigations I worked with focusable cells for a while until I realized this was a bad idea. Here are a few more findings if you are interested. 
 
@@ -150,7 +156,7 @@ For all these reasons I recommend avoiding focusable cells if you intend to wrap
 
 Supporting supplementary views is very similar to supporting cells. We simply introduce a dedicated view builder and a host view. As for cells, type inference requires the addition of a new `SupplementaryView `type parameter to the generic `CollectionView` type:
 
-{% highlight swift %}
+{% highlight swift linenos %}
 struct CollectionView<Section: Hashable, Item: Hashable, Cell: View, SupplementaryView: View>: UIViewRepresentable {
     private class HostSupplementaryView: UICollectionReusableView {
         private var hostController: UIHostingController<SupplementaryView>?
@@ -193,7 +199,7 @@ struct CollectionView<Section: Hashable, Item: Hashable, Cell: View, Supplementa
 
 Supplementary views are registered for a single reuse identifier (for the same reason a single identifier is required for cells) but specific kinds, e.g. header, footer or custom. We store known kinds in our coordinator as they are registered so that each required registration is made at most once:
    
-{% highlight swift %}
+{% highlight swift linenos %}
 struct CollectionView<Section: Hashable, Item: Hashable, Cell: View, SupplementaryView: View>: UIViewRepresentable {
     // ...
     

@@ -7,6 +7,9 @@ Faced with the inability to reach an acceptable level of performance with grid l
 
 _This article is part 2 in the [Building a Collection For SwiftUI](/swiftui_collection_intro) series_.
 
+* TOC
+{:toc}
+
 ## Implementation Strategies and Requirements
 
 Two possible implementation strategies can be considered when implementing a SwiftUI collection:
@@ -41,7 +44,7 @@ When interfacing UIKit with SwiftUI this important distiction translates into tw
 
 We therefore start our implementation by conforming our new `CollectionView` type to `UIViewRepresentable` and implementing its two required methods:
 
-{% highlight swift %}
+{% highlight swift linenos %}
 struct CollectionView: UIViewRepresentable {
     func makeUIView(context: Context) -> UICollectionView {
         // Create the collection view for the first time
@@ -61,7 +64,7 @@ With iOS 13 and tvOS 13 collection view layouts can be provided in a general dec
 
 Because SwiftUI was introduced with iOS and tvOS 13, compositional layouts are the obvious choice for our implementation:
 
-{% highlight swift %}
+{% highlight swift linenos %}
 struct CollectionView: UIViewRepresentable {
     private func layout() -> UICollectionViewLayout {
         return UICollectionViewCompositionalLayout { sectionIndex, layoutEnvironment in
@@ -93,7 +96,7 @@ When a data change needs to be made, a corresponding snapshot must be created an
 
 Let us first briefly consider from a client perspective. A parent content view which displays some `Model` conforming to `ObservableObject` into our `CollectionView` would roughly be implemented as follows:
 
-{% highlight swift %}
+{% highlight swift linenos %}
 struct ContentView: View {
     @ObservedObject var model: Model
     
@@ -113,7 +116,7 @@ What kind of data format should we use, then? Using `UICollectionViewDiffableDat
 
 For compatibility with compositional layouts which display rows of items, it is natural to model the data displayed by a `CollectionView` as an array of rows, each row being described by the section it corresponds to and the items it contains:
 
-{% highlight swift %}
+{% highlight swift linenos %}
 struct CollectionRow<Section: Hashable, Item: Hashable>: Hashable {
     let section: Section
     let items: [Item]
@@ -124,7 +127,7 @@ Since `Section` and `Item` are both `Hashable`, making `CollectionViewRow` itsel
 
 Since `CollectionRow` is a generic type, the collection view itself must at least be parametrized with the same `Section` and `Item` types:
 
-{% highlight swift %}
+{% highlight swift linenos %}
 struct CollectionView<Section: Hashable, Item: Hashable>: UIViewRepresentable {
     let rows: [CollectionRow<Section, Item>]
     
@@ -138,7 +141,7 @@ Types for the generic parameters will be automatically inferred by the Swift com
 
 A `UICollectionView` requires a data source to provide the data it displays. Instantiating a diffable data source containing `Item`s in `Section`s and displaying them in a `collectionView` is simple:
 
-{% highlight swift %}
+{% highlight swift linenos %}
 let dataSource = UICollectionViewDiffableDataSource<Section, Item>(collectionView: collectionView) { collectionView, indexPath, item in
     // Return UICollectionViewCell for the item
 }
@@ -150,7 +153,7 @@ Fortunately SwiftUI provides an answer in the form of coordinators. The `UIViewR
 
 We don't know much about the coordinator type we need yet, except that it must store our data source. After initial creation, this coordinator is provided to the `makeUIView(context:)` method through the context parameter as a constant. We must be able to mutate the contained data source reference after the `UICollectionView` has been instantiated (the diffable data source namely requires the collection view at initialization time), so our `Coordinator` needs to be a `class`:
 
-{% highlight swift %}
+{% highlight swift linenos %}
 struct CollectionView<Section: Hashable, Item: Hashable>: UIViewRepresentable {
     class Coordinator {
         fileprivate typealias DataSource = UICollectionViewDiffableDataSource<Section, Item>
@@ -180,7 +183,7 @@ Now that we have a data source properly created and retained for the lifetime of
 
 Updating a diffable data source is made in increments. When data changes it suffices to build a new data snapshot and apply it:
 
-{% highlight swift %}
+{% highlight swift linenos %}
 struct CollectionView<Section: Hashable, Item: Hashable>: UIViewRepresentable {
     // ...
     
@@ -211,7 +214,7 @@ Since performance issues are what motivated the creation of a custom `Collection
 
 To fix performance issues associated with the first snapshot, it suffices to factor out the corresponding code into a `reloadData(context:animated:)` method, called with or without animation depending on whether we are creating or updating the view:
 
-{% highlight swift %}
+{% highlight swift linenos %}
 struct CollectionView<Section: Hashable, Item: Hashable, Cell: View>: UIViewRepresentable {
     // ...
     
@@ -245,7 +248,7 @@ Sadly there is no way to distinguish updates due to data or enviroment changes i
 
 Fortunately there is. As you may remember we made `CollectionViewRow` conform to `Hashable`. Calculating hashes is much cheaper than creating and applying a snapshot. Each time we apply a snapshot we can therefore store a hash of its `rows`, persist this value into our coordinator so that it stays available between updates, and only apply a new snapshot when the hash actually changed:
 
-{% highlight swift %}
+{% highlight swift linenos %}
 struct CollectionView<Section: Hashable, Item: Hashable>: UIViewRepresentable {
     class Coordinator {
         // ...
@@ -276,7 +279,7 @@ We now almost have a first working `CollectionView` implementation. We only need
 
 At the beginning of this article we instantiated a `UICollectionViewCompositionalLayout` but did not provide any meaningful implementation for it:
 
-{% highlight swift %}
+{% highlight swift linenos %}
 struct CollectionView<Section: Hashable, Item: Hashable>: UIViewRepresentable {
     // ...
 
@@ -292,7 +295,7 @@ How should clients of our `CollectionView` provide a layout? We want our collect
 
 Our compositional layout internally requires a section layout provider trailing closure, so this is what our public type interface will let the user customize:
 
-{% highlight swift %}
+{% highlight swift linenos %}
 struct CollectionView<Section: Hashable, Item: Hashable>: UIViewRepresentable {
     // ...
     
@@ -309,7 +312,7 @@ struct CollectionView<Section: Hashable, Item: Hashable>: UIViewRepresentable {
 
 Clients provide a section layout when instantiating a `CollectionView`, for example a shelf-like layout similar to the one we previously implemented with SwiftUI stacks and scroll views (see [part 1](/swiftui_collection_part1)):
 
-{% highlight swift %}
+{% highlight swift linenos %}
 CollectionView(rows: rows()) { sectionIndex, layoutEnvironment in
     let itemSize = NSCollectionLayoutSize(widthDimension: .fractionalWidth(1), heightDimension: .fractionalHeight(1))
     let item = NSCollectionLayoutItem(layoutSize: itemSize)
@@ -327,7 +330,7 @@ Refer to the [official documentation](https://developer.apple.com/documentation/
 
 The layout example above is quite simple. In general each section layout might depend on the data model, though, for example if the layout is received from a web service. In such cases the `sectionLayoutProvider` block will capture the initial context and keep it for subsequent layout updates, which is not what we want if the layout returned by the web service later changes. To solve this issue our friend the coordinator again comes to the rescue:
 
-{% highlight swift %}
+{% highlight swift linenos %}
 struct CollectionView<Section: Hashable, Item: Hashable>: UIViewRepresentable {
     class Coordinator {
         // ...
@@ -375,7 +378,7 @@ Our `CollectionView` first implementation is almost finished, but the cell provi
 
 SwiftUI syntax is built on top of [view builders](https://developer.apple.com/documentation/swiftui/viewbuilder), actually a special kind of function builder. To be able to associate SwiftUI cells with their `UICollectionViewCell` counterparts (which we still need internally for our `UICollectionView` implementation), we simply introduce a view builder taking an index path and item as parameters, and returning some SwiftUI view as cell:
 
-{% highlight swift %}
+{% highlight swift linenos %}
 struct CollectionView<Section: Hashable, Item: Hashable, Cell: View>: UIViewRepresentable {
     // ...
     
@@ -399,7 +402,7 @@ The `@ViewBuilder` syntax requires a dedicated initializer, as `@ViewBuilder` ca
 
 Cells whose layout is defined with SwiftUI code are ultimately displayed by a `UICollectionView` and thus must be wrapped for display by UIKit. This is achieved by using `UIHostingController` and a simple host `UICollectionViewCell`:
 
-{% highlight swift %}
+{% highlight swift linenos %}
 struct CollectionView<Section: Hashable, Item: Hashable, Cell: View>: UIViewRepresentable {
     // ...
     
@@ -435,7 +438,7 @@ The implementation of this cell is straightforward:
 
 Now that we have a cell, it suffices to register it and return dequeued instances from our data source, assigning it the corresponding SwiftUI cell:
 
-{% highlight swift %}
+{% highlight swift linenos %}
 struct CollectionView<Section: Hashable, Item: Hashable>: UIViewRepresentable {
     // ...
     
@@ -460,6 +463,7 @@ struct CollectionView<Section: Hashable, Item: Hashable>: UIViewRepresentable {
 Note that, unlike cells defined in UIKit, there is no need for clients of our `CollectionView` to mess with cell class registrations and reuse identifiers. Only one cell identifier is required and managed internally. All cells provided in SwiftUI namely share the same `Cell` generic type parameter, whose actual value is filled in by the Swift compiler based on what is inside the view builder closure.
 
 ### Remark
+{:.no_toc}
 
 iOS and tvOS 14 provide a [new `CellRegistration` API](https://developer.apple.com/documentation/uikit/uicollectionview/cellregistration) but, to keep things simple, we still use the old cell registration and dequeuing API, so that the implementation is compatible with iOS and tvOS 13 without the use of availability macros. The iOS and tvOS 14 modern implementation is left as an exercise for the reader.
 
@@ -467,7 +471,7 @@ iOS and tvOS 14 provide a [new `CellRegistration` API](https://developer.apple.c
 
 Bringing everything together, we now have a first working implementation of a `CollectionView` in SwiftUI, powered by `UICollectionView`. The complete source code will be provided [in the third and last article in this series](/swiftui_collection_part3), but let us have a look at how a shelf-like layout like the one we discussed in [part 1](/swiftui_collection_part1) is implemented with the API we have defined throughout this article, on tvOS:
 
-{% highlight swift %}
+{% highlight swift linenos %}
 import SwiftUI
 
 struct Shelf: View {

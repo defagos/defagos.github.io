@@ -9,13 +9,16 @@ In fact, combining these basic components to achieve grid and table layouts in S
 
 _This article is part 1 in the [Building a Collection For SwiftUI](/swiftui_collection_intro) series_.
 
+* TOC
+{:toc}
+
 ## Basic Grid Layouts in SwiftUI
 
 Think about the TV, App Store or Netflix apps. They present their content in horizontally scrollable shelves, a layout fairly common among iOS and tvOS apps.
 
 Creating such a layout in SwiftUI is as simple as nesting a few stacks and scroll views:
 
-{% highlight swift %}
+{% highlight swift linenos %}
 struct Cell: View {
     let row: Int
     let column: Int
@@ -72,7 +75,7 @@ This year SwiftUI introduces lazy variants of stacks in iOS and tvOS 14. Seems l
 
 In our case only the outermost stack should be made lazy so that each row height can be properly calculated:
 
-{% highlight swift %}
+{% highlight swift linenos %}
 struct Cell: View {
     let row: Int
     let column: Int
@@ -118,6 +121,7 @@ When profiled with Instruments we clearly see an improvement:
 Pretty nice until now, isn't it?
 
 ### Remark
+{:.no_toc}
 
 Though iOS and tvOS 14 also introduce lazy grids with similar behavior, those are not suited for our shelf-based layout as they currently do not support independently scrollable rows.
 
@@ -129,7 +133,7 @@ Fortunately it is very easy to make cells focusable by turning them into buttons
 
 Since focus makes the button larger and adds a large shadow to it, I tweaked the margins to let the content shine when focused, but otherwise the code is identical to the one above, except for an added button wrapper in cells. Note that this code only runs on tvOS 14, as the button style is only available there (it is quite easy to make the code compatible with iOS 13 and tvOS 13, but this is left as an exercise for the reader):
 
-{% highlight swift %}
+{% highlight swift linenos %}
 struct Cell: View {
     let row: Int
     let column: Int
@@ -183,6 +187,7 @@ We can now navigate the collection and enjoy the native tvOS behavior we expect 
 To verify this assumption it suffices to tweak the code above and to load 20 rows of 50 items instead. If you attempt to run the result on an Apple TV device you will clearly experience severe issues. Scrolling performance namely degrades fast with increasing number of items and the user experience becomes horrendous, even with the basic cells we display. You can also notice that lazy stacks do not work well on tvOS, as they force the focus to move one item at a time near collection boundaries.
 
 ### Remark
+{:.no_toc}
 
 If you run the code above on iOS (without the card button style which is available for tvOS only), the experience is better overall:
 
