@@ -432,6 +432,8 @@ A view can be forced to a given aspect ratio with the `View/aspectRatio(_:conten
 
 The aspect ratio is an optional parameter. If omitted the intrinsic aspect ratio of the receiver is used.
 
+TODO: Be more precise. Parent offers size to the child, child takes all space in at least one direction, then returns the space needed in the other direction to maintaint the desired aspect ratio and content mode.
+
 ### Fixed Size
 {:.no_toc}
 
@@ -569,6 +571,103 @@ Example: LabeledCardButton: Wants to use the whole space (expanding in all direc
 
 - Show Button + card style (hugging) and show how an expanding button is implemented
 
+## Special cases: UIViewControllerRepresentable and UIViewRepresentable
+
+- UIViewControllerRepresentable with UIHostingController has h-exp and v-exp behavior
+- UIViewRepresentable with UIHostingController as coordinator lets the view behavior be tweaked with constraints. By setting content hugging priorities to required a view can be made hugging, otherwise it has expanding behavior
+
+Conclusion: If the wrapped view behavior needs to be adjusted, use UIViewRepresentable.
+
+Compare:
+
+````
+import SwiftUI
+
+struct Wrapper<Content: View>: UIViewControllerRepresentable {
+    private let content: () -> Content
+    
+    init(@ViewBuilder content: @escaping () -> Content) {
+        self.content = content
+    }
+    
+    func makeUIViewController(context: Context) -> UIHostingController<Content> {
+        let hostController = UIHostingController(rootView: content(), ignoreSafeArea: true)
+        
+        if let hostView = hostController.view {
+            hostView.backgroundColor = .clear
+            hostView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        }
+        return hostController
+    }
+    
+    func updateUIViewController(_ uiViewController: UIHostingController<Content>, context: Context) {
+        uiViewController.rootView = content()
+    }
+}
+
+struct Wrapper_Previews: PreviewProvider {
+    static var previews: some View {
+        Group {
+            Wrapper {
+                Color.red
+                    .border(Color.green, width: 3)
+            }
+            Wrapper {
+                Text("Test")
+                    .border(Color.green, width: 3)
+            }
+        }
+        .border(Color.blue, width: 3)
+        .previewLayout(.fixed(width: 400, height: 400))
+    }
+}
+```
+
+and
+
+```
+struct WrapperView<Content: View>: UIViewRepresentable {
+    private let content: () -> Content
+    
+    init(@ViewBuilder content: @escaping () -> Content) {
+        self.content = content
+    }
+    
+    func makeCoordinator() -> UIHostingController<Content> {
+        return UIHostingController(rootView: content(), ignoreSafeArea: true)
+    }
+    
+    func makeUIView(context: Context) -> some UIView {
+        return context.coordinator.view
+    }
+    
+    func updateUIView(_ uiView: UIViewType, context: Context) {
+        context.coordinator.rootView = content()
+        
+        // Can be used to alter the view behavior. Attempting to do the same with UIViewControllerRepresentable
+        // implementation above does not work
+        context.coordinator.view.setContentHuggingPriority(.required, for: .horizontal)
+        context.coordinator.view.setContentHuggingPriority(.required, for: .vertical)
+    }
+}
+
+struct WrapperView_Previews: PreviewProvider {
+    static var previews: some View {
+        Group {
+            WrapperView {
+                Color.red
+                    .border(Color.green, width: 3)
+            }
+            WrapperView {
+                Text("Test")
+                    .border(Color.green, width: 3)
+            }
+        }
+        .border(Color.blue, width: 3)
+        .previewLayout(.fixed(width: 400, height: 400))
+    }
+}
+```
 
 ## Layout Examples
 
