@@ -3,7 +3,7 @@ layout: post
 title: Understanding SwiftUI Layout Behaviors
 ---
 
-The SwiftUI layout system is intended to be more predictable, easier to understand and use than UIKit layout system. But in practice the situation is often a bit more complicated.
+The SwiftUI layout system is more predictable and easier to understand than UIKit layout system. But this does not mean how it works is entirely straightforward.
 
 For newcomers with no preconception of how layout historically worked on Apple platforms, official documentation about the SwiftUI layout system might namely be incomplete or [obscure](https://developer.apple.com/documentation/SwiftUI/View/frame(minWidth:idealWidth:maxWidth:minHeight:idealHeight:maxHeight:alignment:)). The number of views and modifiers, as well as their various behaviors, can be quite overwhelming. Even for seasoned UIKit developers it can be difficult to figure out how SwiftUI layout system works, as its core principles are quite different from UIKit well-known concepts of Auto Layout constraints, springs and struts.
 
@@ -42,7 +42,7 @@ Size offers and child view placements vary depending on the expected result, for
 
 During step 2 of the layout process children must decide the size they need before communicating it to their parent. We call *sizing behaviors*[^1] the various possibilities with which a view can decide the size it needs. Note that views might have different sizing behaviors in the horizontal and vertical directions. Knowing which sizing behavior is adopted by a view and how it affects the layout process is crucial in understanding how SwiftUI assigns sizes and positions to views.
 
-Usually a view exhibits one of the following concrete oposite sizing behaviors:
+Usually a view exhibits one of the following concrete opposite sizing behaviors:
 
 - **Expanding** (exp): The view strives to match the size offered by its parent.
 - **Hugging** (hug): The view decides of the best size to fit its content without consulting the size offered by its parent.
@@ -53,7 +53,7 @@ A third abstract behavior must be introduced for composed views, whose behavior 
 
 - **Neutral** (neu): The view adjusts its sizing behavior based on the behaviors of its children, adopting hugging behavior if and only if all its children have hugging behavior, otherwise expanding behavior.
 
-These three sizing behaviors describe *intrinsic* properties of views, which means they apply to views considered in isolation. In concrete situations, though, views are part of a layout hierarchy. When a view is part of a hierarchy, only expanding and hugging behaviors concretely apply. Neutral behavior, though, must be seen a behavioral placeholder for expanding or hugging behaviors, with no existence in concrete hierarchies.
+These three sizing behaviors describe *intrinsic* properties of views, which means they apply to views considered in isolation. In concrete situations, though, views are part of a layout hierarchy. When a view is part of a hierarchy, only expanding and hugging behaviors apply. Neutral behavior, though, must be seen a behavioral placeholder for expanding or hugging behaviors, with no existence in concrete hierarchies.
 
 In the following we might sometimes use h-exp, v-exp, h-hug, v-hug, h-neu and v-neu as shorthands for all possible intrinsic behaviors in horizontal (h) and vertical (v) directions respectively.
 
@@ -67,9 +67,9 @@ Composed views containing a single child are special. They namely behave like de
 
 - A composed view with hugging behavior in some direction provides its child with a fixed content proposal in this direction.
 - A composed view with expanding behavior in some direction provides its child with the maximal content proposal it can afford in this direction.
-- A composed view with hugging behavior in some direction transparently adopts the behavior of its child in the same direction.
+- A composed view with neutral behavior in some direction transparently adopts the behavior of its child in the same direction.
 
-SwiftUI makes extensive use of decorators for defining modifiers. Each modifier has an associated private composed view wrapper, returned as an opaque type from the view modifier. Modifiers are therefore mostly sugar, nothing more, and include iconic examples like `View/frame(width:height:)` or `View/aspectRatio(_:contentMode:)`. 
+SwiftUI makes extensive use of decorators for defining modifiers. Each modifier has an associated private composed view wrapper, returned as an opaque type from the view modifier. Modifiers are therefore syntactic sugar, including iconic examples like `View/frame(width:height:)` or `View/aspectRatio(_:contentMode:)`. 
 
 ## Determining the Intrinsic Sizing Behavior of a View
 
@@ -219,9 +219,7 @@ extension View {
 
 ## Altering Sizing Behaviors
 
-When the behavior of a SwiftUI view is not the one you want you cannot literally alter its properties directly, as views themselves are value types and thus immutable. Instead you wrap the view with unsatisfying behavior into another one to obtain the desired behavior. This is usually achieved by wrapping the view itself into another one, either using some public composed view (e.g. a stack) or by applying a modifier.
-
-Composed views having neutral intrinsic behavior depend on their children to determine whether their actual behavior is expanding or hugging. In addition to the approaches outlines above, such views therefore provide additional ways to influence their sizing behaviors, namely applying modifiers to their children, or simply adding expanding children like spacers.
+When the behavior of a SwiftUI view is not the one you want you cannot alter its properties directly, as views themselves are value types and thus immutable. Instead you wrap the view with unsatisfying behavior into another one to obtain the desired behavior. This is usually achieved using some public composed view (e.g. a stack) or by applying a modifier.
 
 ## Layout Priorities
 
@@ -229,11 +227,21 @@ Layout priorities do not change the sizing behavior of a view. They merely are u
 
 For this reason this article will not further discuss layout priorities. You can read the [dedicated article from John Sundell](https://www.swiftbysundell.com/articles/swiftui-layout-system-guide-part-3/) to learn more about this topic.
 
+## Intrinsic Size
+
+
+## Advice
+
+- Avoid geometry readers
+- Avoid spacers, use spacing in stacks and padding instead
+
+Except when nothing else possible. There is always a better way otherwsie.
+
 ## Conclusion
 
-SwiftUI introduces a robust layout system relying on size negociation between parent and children views. Children ultimately always choose the size they want and adopt one of thee possible intrisic sizing behaviors, expanding, hugging and neutral, possibly different in horizontal and vertical directions.
+SwiftUI introduces a robust layout system relying on size negociation between parent and children views. Children ultimately choose the size they want and based on three possible intrisic sizing behaviors, expanding, hugging and neutral, possibly different in horizontal and vertical directions.
 
-Views involved in a hierarchy effectively only exhibit expanding or hugging behaviors, though. It is the responsibility of the layout system, or yours when you create and study layouts, to identify how neutral behaviors ultimately translate into expanding or hugging behaviors in a hierarchy.
+Views involved in a hierarchy effectively only exhibit expanding or hugging behaviors, though. It is the responsibility of the layout system, or yours when you create or inspect layouts, to identify how neutral behaviors ultimately translate into expanding or hugging behaviors in a hierarchy.
 
 To quicker analyze view hiearchies and understand how adding a view to an existing hierarchy might affect the overall result, it might prove helpful to document custom views so that their intrinsic behavior can be quickly read. While this process must be done for custom views, it can be done for SwiftUI built-in views to offer an overview of their respective behaviors (see Appendix below).
 
@@ -248,7 +256,7 @@ Note that tables not only list behaviors of public view types like `Text`, but a
 ### Dual-Category Views
 {:.no_toc}
 
-Some views can either belong to simple views or composed views depending on how they are instantiated. You should be especially careful when using such views, as simply adding a trailing closure to them might change a simple view into a composed view with entirely different layout behaviors (usually switching from hugging to neutral behavior).
+Some views can either be simple views or composed views depending on how they are instantiated. You should be especially careful when using such views, as simply adding a trailing closure to them might change a simple view into a composed view with entirely different layout behaviors (usually switching from hugging to neutral behavior).
 
 Dual-category views include most notably `Label`, `Link`, `ProgressView`, `Slider`, `Stepper` and `Toggle`.
 
@@ -279,7 +287,6 @@ Button style can be controlled with the `Button/buttonStyle(_:)` modifier, resul
 | `Button` (plain) | Composed | neu | neu | `PlainButtonStyle`. No content insets are applied on tvOS |
 | `Button` (bordered, tvOS only) | Composed | neu | neu | `BorderedButtonStyle`. Some content insets are applied |
 | `Button` (card, tvOS only) | Composed | hug | hug | `CardButtonStyle`. ⚠️ This button calls `View/fixedSize(horizontal:vertical:)` on its content |
-| `Button` (custom) | Composed | | | |
 
 ### Links
 {:.no_toc}
@@ -316,12 +323,6 @@ Stacks are essential components for horizontally and vertically arranging views.
 
 Note that lazy stacks have very different sizing behaviors from their standard counterparts. You should therefore be especially careful when you switch a stack for its lazy counterpart, as this will change your sizing behavior and might require some layout adjustments.
 
-### Grids
-{:.no_toc}
-
-- HGrid / VGrid
-- LazyHGrid / LazyVGrid
-
 ### Sliders
 {:.no_toc}
 
@@ -343,8 +344,6 @@ Progress views can be created with or without associated custom label view. Thei
 | `ProgresView` (linear) with `Label: View` | Composed | exp | hug | No style, `DefaultProgressViewStyle` or `LinearProgressViewStyle`. Label used only for accessibility; does not participate in the layout |
 | `ProgresView` (circular) | Simple | hug | hug | `CircularProgressViewStyle` |
 | `ProgresView` (circular) with `Label: View` | Composed | neu | neu | `CircularProgressViewStyle`. Label displayed underneath |
-| `ProgressView` (custom) | | | | |
-| `ProgressView` (custom) with `Label: View` | | | | |
 
 ### Steppers
 {:.no_toc}
@@ -365,11 +364,6 @@ Toggles can be created with a title `String`, or with a custom view for the titl
 |:-- |:--:|:--:|:--:|
 | `Toggle` | Simple | exp | hug |
 | `Toggle` with `Label: View` | Composed | exp | neu |
-
-### Pickers
-{:.no_toc}
-
-TODO
 
 ### Shapes
 {:.no_toc}
@@ -404,7 +398,7 @@ The `View/frame(width:height:alignment:)` is used to constrain space provided to
 | Omitted | neu |
 | Finite value | hug |
 
-If an argument is omitted for some direction, the frame wrapper transparently adopts the same behavior as the receiver in this direction.
+If an argument is omitted for some direction the frame wrapper transparently adopts the same behavior as the receiver in this direction.
 
 ### Advanced Frame
 {:.no_toc}
@@ -419,12 +413,12 @@ The `View/frame(minWidth:idealWidth:maxWidth:minWeight:idealHeight:maxHeight:ali
 
 If an argument is omitted for some direction, the frame wrapper transparently adopts the same behavior as the receiver in this direction.
 
-Note that only maximum values affect the sizing behavior of the frame. Minimal and ideal arguments are only considered when the frame has hugging behavior (finite maximum value) to choose the best possible size for itself.
+Note that only maximum arguments alter the sizing behavior of the frame. Minimal and ideal arguments are only considered when the frame has hugging behavior (finite maximum value) to choose the best possible size.
 
 ### Aspect Ratio
 {:.no_toc}
 
-A view can be forced to a given aspect ratio with the `View/aspectRatio(_:contentMode:)` modifier. This modifier does not change the sizing behavior of the receiver, but if the receiver is expanding in all directions it guarantees that it fit or fills the parent view while maintaining the desired aspect ratio, depending on the content mode specified.
+A view can be forced to a given aspect ratio with the `View/aspectRatio(_:contentMode:)` modifier. This modifier does not change the sizing behavior of the receiver, but if the receiver is expanding in all directions it guarantees that it fit or fills the parent view while the over direction is set to maintain the desired aspect ratio, depending on the content mode specified.
 
 | Type | Category | Horizontal | Vertical |
 |:-- |:--:|:--:|:--:|
@@ -432,28 +426,29 @@ A view can be forced to a given aspect ratio with the `View/aspectRatio(_:conten
 
 The aspect ratio is an optional parameter. If omitted the intrinsic aspect ratio of the receiver is used.
 
-TODO: Be more precise. Parent offers size to the child, child takes all space in at least one direction, then returns the space needed in the other direction to maintaint the desired aspect ratio and content mode.
-
 ### Fixed Size
 {:.no_toc}
 
-A view can be forced to its intrinsic size with the `View/fixedSize(horizontal:vertical:)` modifier.
+A view can be forced to its intrinsic size with the `View/fixedSize(horizontal:vertical:)` modifier in directions for which the argument is `true`, adopting hugging behavior. If the value is `false` the wrapper is neutral and maintains the behavior of the wrapped view.
+
+| `horizontal` / `vertical` argument | Obtained behavior in the horizontal / vertical direction |
+|:-- |:--:|
+| true | hug |
+| false | neu |
+
+As discussed in the _Ambiguous Layout_ section, if the intrinsic dimension of the receiver cannot be determined SwiftUI will replace it with the magic value 10.
+
+### Decorators
+{:.no_toc}
+
+These views adopt the behavior of the receiver in all directions to decorate it.
 
 | Type | Category | Horizontal | Vertical |
 |:-- |:--:|:--:|:--:|
-| `View/fixedSize(horizontal:vertical:)` | Composed | hug | hug |
-
-If an argument is omitted for some direction, the frame wrapper transparently adopts the same behavior as the receiver in this direction. As discussed in the _Ambiguous Layout_ section, if the intrinsic dimension of the receiver cannot be determined SwiftUI will replace it with the magic value 10.
-
-### Border, Background and Overlay
-{:.no_toc}
-
-TODO
-
-### Offset
-{:.no_toc}
-
-TODO
+| `View/border(_:width:)` | Composed | neu | neu |
+| `View/background(_:alignment:)` | Composed | neu | neu |
+| `View/overlay(_:alignment:)` | Composed | neu | neu |
+| `View/offset(_:)` and `View/offset(x:y:)` | Composed | neu | neu |
 
 ### Special Views
 {:.no_toc}
@@ -465,111 +460,10 @@ The following are special invisible views
 | `GeometryReader` | Composed | neu | neu | The `geometryProxy` can be used for placing children precisely, otherwise they are put at the origin (top left) |
 | `Group` | Composed | neu | neu | |
 
-
-- GroupBox
-- ForEach
-- ScrollView
-- List
-- Menu
-- If
-- etc.
-
 ### UIViewRepresentable / UIViewControllerRepresentable
 {:.no_toc}
 
 Depend on the prorities defined on the view (e.g. lowest hugging)
-
-## Card button style investigation
-{:.no_toc}
-
-Create a tvOS Card button with a color as only child -> you see that a 10 x 10 rectangle is displaye.
-
-For other styles it works differently (color expands).
-
-Conclusion: Button card calls fixedSize modifier on its content. Problems with ZStack for example, as size of a ZStack is determined by its largest child
-
-Solution: Create card button class with (see Play) with neutral behavior
-
-
-TOOD:
-
-Add: Simple views are always expanding or hugging intrinsically, no neutral behavior is possible.
-
-## Advice
-
-- Avoid geometry readers
-- Avoid spacers
-
-Except when nothing else possible. There is always a better way otherwsie.
-
-## Example: Hide below
-
-A view hiding its content below some threshold. Uses geometry reader to read parent size, and exp-h exp-v frame to occupy the whole geometry reader (which otherwise aligns at the top left origin)
-
-```
-/// Hidden if size offered by a parent is smaller than some threshold
-struct HideBelow<Content: View>: View {
-    let minWidth: CGFloat?
-    let minHeight: CGFloat?
-    
-    let content: () -> Content
-    
-    init(minWidth: CGFloat? = nil, minHeight: CGFloat? = nil, @ViewBuilder content: @escaping () -> Content) {
-        self.minWidth = minWidth
-        self.minHeight = minHeight
-        self.content = content
-    }
-    
-    private func isHidden(in size: CGSize) -> Bool {
-        if let minWidth = minWidth, size.width < minWidth {
-            return true
-        }
-        
-        if let minHeight = minHeight, size.height < minHeight {
-            return true
-        }
-        
-        return false
-    }
-    
-    var body: some View {
-        GeometryReader { geometry in
-            if !isHidden(in: geometry.size) {
-                content()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
-        }
-    }
-}
-
-extension View {
-    func hideBelow(minWidth: CGFloat? = nil, minHeight: CGFloat? = nil) -> some View {
-        return HideBelow(minWidth: minWidth, minHeight: minHeight) {
-            self
-        }
-    }
-}
-```
-
-## Other text to add
-
-Any SwiftUI view must be seen along two axes:
-
-- How it considers parent proposals (any view)
-- How it divides / proposes size to its children (composed views only)
-
-Whe looking at a composed view, see what it divides the space to its children (equally? some child view will get more space?), then have a look at how children individually respond to the size proposal
-
-When creating a composed view:
-
-- Think how it needs to absorb parent requests to determine its size
-- Think how it will then provide / divide this space for children
-
-Example: LabeledCardButton: Wants to use the whole space (expanding in all directions). Provide space to the button area first since the most important (internally, translates into layout prio of 1). Rest is for the label. (simpler example with no size changes on focus)
-
-## tvOS card button example
-
-- Show Button + card style (hugging) and show how an expanding button is implemented
 
 ## Special cases: UIViewControllerRepresentable and UIViewRepresentable
 
@@ -668,30 +562,3 @@ struct WrapperView_Previews: PreviewProvider {
     }
 }
 ```
-
-## Layout Examples
-
-- SwiftUI tvOS button like in Play (for medias)
-- SwiftUI iOS live media cell (logo + text, in a cell which must be resizable to small dimensions)
-- Vertical cell layout
-- Horizontal cell layout
-- Difficult to achieve: have a stack containing a mixture of hugging and expanding views with the height of the tallest hugging view. Easier to force down a known height on a stack (which will then present it to its children).
-
-Cell layout:
-
-Image with fixed ratio
-Text area underneath (flexible)
-Icons at the top right of the image
-iOS and tvOS implementations
-
-TODO: Ajouter colonne qui indique comment une vue hug se comporte si trop petite (garde sa taille, comme Image, ou alors s'adapte, comme Text)
-
-TODO: Vérifier comportement de 
-
-body {
-    if (condition) {
-        SomeView
-    }
-}
-
-si condition = false (exp / exp?)
