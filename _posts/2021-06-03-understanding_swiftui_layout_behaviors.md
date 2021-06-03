@@ -90,7 +90,7 @@ struct SimpleView_Previews: PreviewProvider {
 }
 {% endhighlight %}
 
-If the border is close to the simple view for some direction it has hugging behavior in this directionn, otherwise expanding behavior.
+If the border is close to the simple view for some direction it has hugging behavior in this direction, otherwise expanding behavior.
 
 With this method it can be verified that `Text` has hugging behavior in all directions, while `Color` has expanding behavior in all directions:
 
