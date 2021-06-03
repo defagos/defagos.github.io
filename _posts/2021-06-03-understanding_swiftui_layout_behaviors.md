@@ -256,6 +256,7 @@ let height = SomeView().adaptiveSizeThatFits(in: fittingSize, for: .regular).hei
 If `SomeView` has hugging behavior the matching height is returned. If the view has expanding behavior, though, the returned height will be equal to the size offer `UIView.layoutFittingExpandedSize.height` instead.
 
 #### Remark
+{:.no_toc}
 
 Instead of the visual approach described [above](determining-the-intrinsic-sizing-behavior-of-a-biew) you can use `UIHostingController` and `sizeThatFits(in:)` to probe view sizing behavior. I like the visual approach better but here is a rough idea how you can check that a `VStack` has neutral behavior in all directions, using a Swift playground:
 
