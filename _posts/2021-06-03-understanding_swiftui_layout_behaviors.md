@@ -255,6 +255,41 @@ let height = SomeView().adaptiveSizeThatFits(in: fittingSize, for: .regular).hei
 
 If `SomeView` has hugging behavior the matching height is returned. If the view has expanding behavior, though, the returned height will be equal to the size offer `UIView.layoutFittingExpandedSize.height` instead.
 
+#### Remark
+
+Instead of the visual approach described [above](determining-the-intrinsic-sizing-behavior-of-a-biew) you can use `UIHostingController` and `sizeThatFits(in:)` to probe view sizing behavior. I like the visual approach better but here is a rough idea how you can check that a `VStack` has neutral behavior in all directions, using a Swift playground:
+
+{% highlight swift linenos %}
+struct ComposedViewExpandingTest: View {
+    var body: some View {
+        VStack {
+            Color.red
+        }
+    }
+}
+
+struct ComposedViewHuggingTest: View {
+    var body: some View {
+        VStack {
+            Text("Test")
+        }
+    }
+}
+
+extension View {
+    func probedSize() -> CGSize {
+        let hostController = UIHostingController(rootView: self)
+        return hostController.sizeThatFits(in: UIView.layoutFittingExpandedSize)
+    }
+}
+
+let expandingSize = ComposedViewExpandingTest().probedSize()
+let huggingSize = ComposedViewHuggingTest().probedSize()
+
+let hNeutral = huggingSize.width != UIView.layoutFittingExpandedSize.width && expandingSize.width == UIView.layoutFittingExpandedSize.width
+let vNeutral = huggingSize.height != UIView.layoutFittingExpandedSize.height && expandingSize.height == UIView.layoutFittingExpandedSize.height
+{% endhighlight %}
+
 ## UIViewRepresentable and UIViewControllerRepresentable
 
 Special considerations are required when considering the sizing behavior of views implemented with `UIViewRepresentable` or `UIViewControllerRepresentable`. Such considerations are outside the scope of this article and will be discussed in a separate article.
