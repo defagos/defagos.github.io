@@ -530,5 +530,5 @@ The following are special views for positioning and grouping.
 
 | Type | Category | Horizontal | Vertical | Remarks |
 |:-- |:--:|:--:|:--:|:-- |
-| `GeometryReader` | Composed | exp | exp | The `geometryProxy` can be used for placing children precisely, otherwise they are put at the origin (top left). It takes all space offered by its parent to let you position views within it. |
+| `GeometryReader` | Composed | exp | exp | Takes the whole size offered by its parent. Its `geometryProxy` parameter can be used for precise children placement within the associated region. If a child is not provided with a frame the geometry reader simply places it at the top left |
 | `Group` | Composed | neu | neu | |
