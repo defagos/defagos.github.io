@@ -124,7 +124,28 @@ If expanding, respectively hugging behavior is observed for the composed view wh
 
 If on the other hand the composed view ignores its child behavior for some direction, then it must either have expanding or hugging behavior in this direction. Simply apply the procedure for simple views to determine the intrinsic composed view behavior in this case.
 
-With this method it can be verified that a `Toggle` wrapping some `View` label has expanding behavior horizontally, but neutral behavior vertically:
+With this method it can be verified that a `Toggle` wrapping some `View` label:
+
+{% highlight swift linenos %}
+struct ComposedView_Previews: PreviewProvider {
+    static var previews: some View {
+        Group {
+            Toggle(isOn: .constant(true)) {
+                Color.red
+                    .border(Color.green, width: 3)
+            }
+            Toggle(isOn: .constant(true)) {
+                Text("Option")
+                    .border(Color.green, width: 3)
+            }
+        }
+        .border(Color.blue, width: 3)
+        .previewLayout(.fixed(width: 1000, height: 1000))
+    }
+}
+{% endhighlight %}
+
+has expanding behavior horizontally, but neutral behavior vertically:
 
 ![Composed view](/images/swiftui_layout_composed_view.jpg)
 
