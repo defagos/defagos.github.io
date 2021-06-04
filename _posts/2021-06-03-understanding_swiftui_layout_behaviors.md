@@ -408,10 +408,10 @@ Progress views can be created with or without associated custom label view. Thei
 
 | Type | Category | Horizontal | Vertical | Remarks |
 |:-- |:--:|:--:|:--:|:-- |
-| `ProgresView` (linear) | Simple | exp | hug | No style, `DefaultProgressViewStyle` or `LinearProgressViewStyle` |
-| `ProgresView` (linear) with `Label: View` | Composed | exp | hug | No style, `DefaultProgressViewStyle` or `LinearProgressViewStyle`. Label used only for accessibility; does not participate in the layout |
-| `ProgresView` (circular) | Simple | hug | hug | `CircularProgressViewStyle` |
-| `ProgresView` (circular) with `Label: View` | Composed | neu | neu | `CircularProgressViewStyle`. Label displayed underneath |
+| `ProgressView` (linear) | Simple | exp | hug | No style, `DefaultProgressViewStyle` or `LinearProgressViewStyle` |
+| `ProgressView` (linear) with `Label: View` | Composed | exp | hug | No style, `DefaultProgressViewStyle` or `LinearProgressViewStyle`. Label used only for accessibility; does not participate in the layout |
+| `ProgressView` (circular) | Simple | hug | hug | `CircularProgressViewStyle` |
+| `ProgressView` (circular) with `Label: View` | Composed | neu | neu | `CircularProgressViewStyle`. Label displayed underneath |
 
 ### Steppers
 {:.no_toc}
