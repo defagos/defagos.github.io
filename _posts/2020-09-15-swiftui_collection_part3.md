@@ -30,7 +30,7 @@ To briefly sketch the theory behind dynamic subclassing, consider you have an ob
 
 In our case, we can provide the missing opt-in behavior we need as an extension on `UIHostingController`, applied by dynamically changing the hosting view class to a subclass ignoring safe area insets:
 
-{% highlight swift linenos %}
+```swift
 extension UIHostingController {
     convenience public init(rootView: Content, ignoreSafeArea: Bool) {
         self.init(rootView: rootView)
@@ -63,13 +63,13 @@ extension UIHostingController {
         }
     }
 }
-{% endhighlight %}
+```
 
 This way we only apply a change of behavior to those `UIHostingController` instances for which safe area insets must not be taken into account, for example in our `HostCell` implementation:
 
-{% highlight swift linenos %}
+```swift
 hostController = UIHostingController(rootView: view, ignoreSafeArea: true)
-{% endhighlight %}
+```
 
 With this simple trick cell frames are now correct:
 
@@ -97,7 +97,7 @@ This user experience sets our goal for our SwiftUI `CollectionView` focus behavi
 
 Disabling focus on cell classes directly does not work, but a similar result can be achieved thanks to `UICollectionViewDelegate`, which provides a dedicated delegate method to decide at any time whether a cell must be focusable or not. We therefore make our `Coordinator` conform to this protocol and introduce an internal flag to enable or disable focus for all cells when we want:
 
-{% highlight swift linenos %}
+```swift
 public struct CollectionView<Section: Hashable, Item: Hashable, Cell: View>: UIViewRepresentable {
     public class Coordinator: NSObject, UICollectionViewDelegate {
         // ...
@@ -109,11 +109,11 @@ public struct CollectionView<Section: Hashable, Item: Hashable, Cell: View>: UIV
         }
     }
 }
-{% endhighlight %}
+```
 
 We can now enable `UICollectionView` cell focus during reloads, letting the collection view correctly follow the currently focused item. The rest of the time cells must not be focusable. We strive to enable focus for as little time as possible, and forcing a focus update before restting the flag to its nominal value is sufficient to achieve proper behavior:
 
-{% highlight swift linenos %}
+```swift
 public struct CollectionView<Section: Hashable, Item: Hashable, Cell: View>: UIViewRepresentable {
     private func reloadData(in collectionView: UICollectionView, context: Context, animated: Bool = false) {
         let coordinator = context.coordinator
@@ -133,7 +133,7 @@ public struct CollectionView<Section: Hashable, Item: Hashable, Cell: View>: UIV
         }
     }
 }
-{% endhighlight %}
+```
 
 Note that this requires the `UICollectionView` to be provided as additional parameter to our reload method.
 
@@ -156,7 +156,7 @@ For all these reasons I recommend avoiding focusable cells if you intend to wrap
 
 Supporting supplementary views is very similar to supporting cells. We simply introduce a dedicated view builder and a host view. As for cells, type inference requires the addition of a new `SupplementaryView `type parameter to the generic `CollectionView` type:
 
-{% highlight swift linenos %}
+```swift
 struct CollectionView<Section: Hashable, Item: Hashable, Cell: View, SupplementaryView: View>: UIViewRepresentable {
     private class HostSupplementaryView: UICollectionReusableView {
         private var hostController: UIHostingController<SupplementaryView>?
@@ -195,11 +195,11 @@ struct CollectionView<Section: Hashable, Item: Hashable, Cell: View, Supplementa
         self.supplementaryView = supplementaryView
     }
 }
-{% endhighlight %}
+```
 
 Supplementary views are registered for a single reuse identifier (for the same reason a single identifier is required for cells) but specific kinds, e.g. header, footer or custom. We store known kinds in our coordinator as they are registered so that each required registration is made at most once:
    
-{% highlight swift linenos %}
+```swift
 struct CollectionView<Section: Hashable, Item: Hashable, Cell: View, SupplementaryView: View>: UIViewRepresentable {
     // ...
     
@@ -240,7 +240,7 @@ struct CollectionView<Section: Hashable, Item: Hashable, Cell: View, Supplementa
     
     // ...
 }
-{% endhighlight %}
+```
 
 Supplementary views must be added to your layout and defined within the corresponding view builder. Refer to the source code (link at the end of this article) for an example of use.
 

@@ -18,7 +18,7 @@ Think about the TV, App Store or Netflix apps. They present their content in hor
 
 Creating such a layout in SwiftUI is as simple as nesting a few stacks and scroll views:
 
-{% highlight swift linenos %}
+```swift
 struct Cell: View {
     let row: Int
     let column: Int
@@ -55,7 +55,7 @@ struct Grid: View {
         }
     }
 }
-{% endhighlight %}
+```
 
 ![Stack grid](/images/collection_stack_grid.jpg)
 
@@ -75,7 +75,7 @@ This year SwiftUI introduces lazy variants of stacks in iOS and tvOS 14. Seems l
 
 In our case only the outermost stack should be made lazy so that each row height can be properly calculated:
 
-{% highlight swift linenos %}
+```swift
 struct Cell: View {
     let row: Int
     let column: Int
@@ -112,7 +112,7 @@ struct Grid: View {
         }
     }
 }
-{% endhighlight %}
+```
 
 When profiled with Instruments we clearly see an improvement:
 
@@ -133,7 +133,7 @@ Fortunately it is very easy to make cells focusable by turning them into buttons
 
 Since focus makes the button larger and adds a large shadow to it, I tweaked the margins to let the content shine when focused, but otherwise the code is identical to the one above, except for an added button wrapper in cells. Note that this code only runs on tvOS 14, as the button style is only available there (it is quite easy to make the code compatible with iOS 13 and tvOS 13, but this is left as an exercise for the reader):
 
-{% highlight swift linenos %}
+```swift
 struct Cell: View {
     let row: Int
     let column: Int
@@ -176,7 +176,7 @@ struct Grid: View {
         }
     }
 }
-{% endhighlight %}
+```
 
 We can now navigate the collection and enjoy the native tvOS behavior we expect according to the [Human Interface Guidelines](https://developer.apple.com/design/human-interface-guidelines/tvos/overview/focus-and-parallax):
 

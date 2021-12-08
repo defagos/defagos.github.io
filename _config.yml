@@ -37,6 +37,11 @@ plugins:
 
 markdown: kramdown
 
+kramdown:
+  syntax_highlighter_opts:
+    block:
+      line_numbers: false
+
 footer-links:
   email: defagos@gmail.com
   github: defagos

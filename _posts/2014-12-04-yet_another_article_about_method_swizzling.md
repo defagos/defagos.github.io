@@ -16,15 +16,15 @@ The implementation discussed in this article may have issues of its own, but I d
 
 Since the Objective-C runtime is a series of functions, I decided to implement swizzling as a function as well. Most existing implementations, for example the well-respected [JRSwizzle](https://github.com/rentzsch/jrswizzle), exchange `IMP`s associated with two selectors. Ultimately, though, method swizzling is about changing, not exchanging, which is why I prefer a function expecting an original `SEL` and an `IMP` arguments:
 
-{% highlight objc %}
+```objc
 IMP class_swizzleSelector(Class clazz, SEL selector, IMP newImplementation);
-{% endhighlight %} 
+``` 
 
 instead of two `SEL` arguments:
 
-{% highlight objc %}
+```objc
 IMP class_swizzleSelectorWithSelector(Class clazz, SEL selector, SEL swizzlingSelector); 
-{% endhighlight %}
+```
 
 Moreover, using an `IMP` (in other words a C-function) instead of a selector implementation avoids potential clashes if your swizzling selector name convention happens to be the same as the one used elsewhere, especially when dealing with 3rd party code. Don't be too optimistic, accidental method overriding due to [bad conventions](https://github.com/search?l=objective-c&q=%22%28void%29commonInit%22&ref=searchresults&type=Code&utf8=%E2%9C%93) can happen all the time.
 
@@ -56,7 +56,7 @@ No swizzling implementation I encountered correctly deals with this issue, [not 
 
 Based on the above, I first implemented instance method swizzling as follows:
 
-{% highlight objc linenos %}
+```objc
 #import <objc/runtime.h>
 #import <objc/message.h>
 
@@ -83,15 +83,15 @@ IMP class_swizzleSelector(Class clazz, SEL selector, IMP newImplementation)
     // Can now safely swizzle
     return class_replaceMethod(clazz, selector, newImplementation, types);
 }
-{% endhighlight %}
+```
 For class method swizzling, it suffices to call the above function on a metaclass:
 
-{% highlight objc linenos %}
+```objc
 IMP class_swizzleClassSelector(Class clazz, SEL selector, IMP newImplementation)
 {
     return class_swizzleSelector(object_getClass(clazz), selector, newImplementation);
 }
-{% endhighlight %}
+```
 
 The `imp_implementationWithBlock` function is used as a trampoline to accomodate any kind of method prototype through a variable argument list `va_list`. The `super` method call is made by properly casting `objc_msgSendSuper`, available from `<objc/message.h>`. In order to prevent ARC from inserting incorrect memory management calls, the `self` parameter of the implementation block has been marked with `__unsafe_unretained`.
 
@@ -105,7 +105,7 @@ For method returning large structs, we need the `imp_implementationWithBlock` fu
 
 For large struct returns, instead of calling the `class_swizzleSelector` function above, we therefore must call the following `class_swizzleSelector_stret` function:
 
-{% highlight objc linenos %}
+```objc
 #import <objc/runtime.h>
 #import <objc/message.h>
 
@@ -138,13 +138,13 @@ IMP class_swizzleSelector_stret(Class clazz, SEL selector, IMP newImplementation
     // Can now safely swizzle
     return class_replaceMethod(clazz, selector, newImplementation, types);
 }
-{% endhighlight %}
+```
 
 ## Wrapping up: IMP-swizzling
 
 Having a separate `class_swizzleSelector_stret` function which must appropriately be called when large structs are returned is rather inconvenient. Fortunately, its implementation can be merged into `class_swizzleSelector` by checking return type size information for 32-bit architectures first. We obtain a single function for method swizzling with an `IMP`:
 
-{% highlight objc linenos %}
+```objc
 #import <objc/runtime.h>
 #import <objc/message.h>
 
@@ -202,7 +202,7 @@ IMP class_swizzleSelector(Class clazz, SEL selector, IMP newImplementation)
     // Swizzling
     return class_replaceMethod(clazz, selector, newImplementation, types);
 }
-{% endhighlight %} 
+``` 
 
 The `_stret` variants are not available on ARM 64, thus the extra preprocessor adornments.
 
@@ -211,7 +211,7 @@ The `_stret` variants are not available on ARM 64, thus the extra preprocessor a
 
 To swizzle a method, define a static C-function for the new implementation and call `class_swizzleSelector` or `class_swizzleClassSelector` to set it as new one. Save the original implementation into a function pointer matching the function signature, and make sure the new implementation calls it somehow:
 
-{% highlight objc linenos %}
+```objc
 static id (*initWithFrame)(id, SEL, CGRect) = NULL;
 static void (*awakeFromNib)(id, SEL) = NULL;
 static void (*dealloc)(__unsafe_unretained id, SEL) = NULL;
@@ -248,7 +248,7 @@ static void swizzle_dealloc(__unsafe_unretained UILabel *self, SEL _cmd)
 }
 
 @end
-{% endhighlight %} 
+``` 
 
 Note that I added an extra `__unsafe_unretained` specifier to the `swizzle_dealloc` prototype to ensure ARC does not insert additional memory management calls. I also cheated by getting the `dealloc` selector with `sel_getUid`, since `@selector(dealloc)` cannot be used with ARC.
 
@@ -256,7 +256,7 @@ Note that I added an extra `__unsafe_unretained` specifier to the `swizzle_deall
 
 Thanks to `imp_implementationWithBlock`, we can provide a block instead of an `IMP` for the new implementation:
 
-{% highlight objc linenos %}
+```objc
 IMP class_swizzleSelectorWithBlock(Class clazz, SEL selector, id newImplementationBlock)
 {
     IMP newImplementation = imp_implementationWithBlock(newImplementationBlock);
@@ -268,7 +268,7 @@ IMP class_swizzleClassSelectorWithBlock(Class clazz, SEL selector, id newImpleme
     IMP newImplementation = imp_implementationWithBlock(newImplementationBlock);
     return class_swizzleClassSelector(clazz, selector, newImplementation);
 }
-{% endhighlight %} 
+``` 
 
 The block signature itself does not include the selector parameter, as specified in the `imp_implementationWithBlock` [documentation](https://developer.apple.com/library/mac/documentation/Cocoa/Reference/ObjCRuntimeRef/index.html).
 
@@ -277,7 +277,7 @@ The block signature itself does not include the selector parameter, as specified
 
 The above example can be rewritten using blocks, eliminating the need for static methods and function pointers:
 
-{% highlight objc linenos %}
+```objc
 @implementation UILabel (SwizzlingExamples)
 
 + (void)load
@@ -303,7 +303,7 @@ The above example can be rewritten using blocks, eliminating the need for static
 }
 
 @end
-{% endhighlight %} 
+``` 
 
 Returned original implementations must be saved into `__block` variables to be accessible from within the corresponding implementation blocks.
 
@@ -311,7 +311,7 @@ Returned original implementations must be saved into `__block` variables to be a
 
 Some redundancy is found in both examples of use above, but can be eliminated by defining a few convenience macros:
 
-{% highlight objc linenos %}
+```objc
 #define SwizzleSelector(clazz, selector, newImplementation, pPreviousImplementation) \
     (*pPreviousImplementation) = (__typeof((*pPreviousImplementation)))class_swizzleSelector((clazz), (selector), (IMP)(newImplementation))
 
@@ -327,7 +327,7 @@ Some redundancy is found in both examples of use above, but can be eliminated by
     SEL _cmd = selector; \
     __block IMP _imp = class_swizzleClassSelectorWithBlock((clazz), (selector),
 #define SwizzleClassSelectorWithBlock_End );}
-{% endhighlight %} 
+``` 
 
 To emphasize that the `IMP`-swizzling macros set the new implementation variable, the corresponding macro parameter needs to be adorned with an ampersand. 
 
@@ -343,7 +343,7 @@ Moreover, the block-swizzling macros declare a hidden scope where the selector `
 
 The two previous examples can now be rewritten as follows:
 
-{% highlight objc linenos %}
+```objc
 @implementation UILabel (SwizzlingExamples)
 
 // Function pointers and static functions, as defined above
@@ -356,11 +356,11 @@ The two previous examples can now be rewritten as follows:
 }
 
 @end
-{% endhighlight %} 
+``` 
 
 respectively:
 
-{% highlight objc linenos %}
+```objc
 @implementation UILabel (SwizzlingExamples)
 
 + (void)load
@@ -392,7 +392,7 @@ respectively:
 }
 
 @end
-{% endhighlight %} 
+``` 
 
 I especially like the compactness of block-swizzling using macros. There is no need to define separate functions and method pointers, and the swizzled method implementation can be easily recognized, enclosed between the `Begin` and `End` macros.
 

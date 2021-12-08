@@ -88,15 +88,3 @@ QuickLook should open and display the string.
 ## Wrapping up
 
 This post discussed how debugging code can be packaged as a dynamic library, and how it can be automatically loaded when an application is debugged in the iOS simulator. By applying the same strategy, you could package your own LLDB debugging helpers as dynamic libraries which can be shared between your projects, without having to modify them. Have fun!
-
-
-
-
-
-
-
-
-
-
-
-

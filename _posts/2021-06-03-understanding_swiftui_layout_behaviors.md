@@ -80,7 +80,7 @@ You can probe the sizing behavior of a view to determine its intrinsic sizing be
 
 To determine the sizing behavior of a simple view use a sufficiently large canvas, attach a border to the simple view, and observe where the border is displayed:
 
-{% highlight swift linenos %}
+```swift
 struct SimpleView_Previews: PreviewProvider {
     static var previews: some View {
         SimpleView(...)
@@ -88,7 +88,7 @@ struct SimpleView_Previews: PreviewProvider {
             .previewLayout(.fixed(width: 1000, height: 1000))
     }
 }
-{% endhighlight %}
+```
 
 If the border is close to the simple view for some direction it has hugging behavior in this direction, otherwise expanding behavior.
 
@@ -101,7 +101,7 @@ With this method it can be verified that `Text` has hugging behavior in all dire
 
 To determine the behavior of a composed view use a sufficiently large canvas, attach a border to the composed view, and observe where the border is displayed when the composed view wraps an expanding child view, respectively a hugging child view. `Text` and `Color` are ideal child candidates as they let us probe both horizontal and vertical behaviors at the same time:
 
-{% highlight swift linenos %}
+```swift
 struct ComposedView_Previews: PreviewProvider {
     static var previews: some View {
         Group {
@@ -118,7 +118,7 @@ struct ComposedView_Previews: PreviewProvider {
         .previewLayout(.fixed(width: 1000, height: 1000))
     }
 }
-{% endhighlight %}
+```
 
 If expanding, respectively hugging behavior is observed for the composed view when its child is expanding, respectively hugging in some direction, this means the composed view has neutral behavior in this direction, as it adopts the behavior of its child.
 
@@ -126,7 +126,7 @@ If on the other hand the composed view ignores its child behavior for some direc
 
 With this method it can be verified that a `Toggle` wrapping some `View` label:
 
-{% highlight swift linenos %}
+```swift
 struct ComposedView_Previews: PreviewProvider {
     static var previews: some View {
         Group {
@@ -143,7 +143,7 @@ struct ComposedView_Previews: PreviewProvider {
         .previewLayout(.fixed(width: 1000, height: 1000))
     }
 }
-{% endhighlight %}
+```
 
 has expanding behavior horizontally, but neutral behavior vertically:
 
@@ -154,7 +154,7 @@ has expanding behavior horizontally, but neutral behavior vertically:
 
 Modifiers return opaque composed views (as they are meant to augment the view they are applied on). Probing a modifier is therefore achieved in the same way as for composed views:
 
-{% highlight swift linenos %}
+```swift
 struct Modifier_Previews: PreviewProvider {
     static var previews: some View {
         Group {
@@ -167,7 +167,7 @@ struct Modifier_Previews: PreviewProvider {
         .previewLayout(.fixed(width: 1000, height: 1000))
     }
 }
-{% endhighlight %}
+```
 
 With this method it can be verified that applying the `frame(maxWidth: .infinity)` modifier creates an expanding horizontal frame with neutral vertical behavior:
 
@@ -183,14 +183,14 @@ This does not mean that ambiguities do not exist in SwiftUI layouts, though. Whe
 
 Such situations usually occur when a parent view wants to size itself based on the size of its children, but those children exhibit expanding behavior and thus want to match the parent size. This creates a chicken-and-egg problem which SwiftUI solves by replacing undetermined sizes with 10, as can be seen with the simple following code:
 
-{% highlight swift linenos %}
+```swift
 struct Undetermined_Size_Previews: PreviewProvider {
     static var previews: some View {
         Color.red
             .fixedSize()
     }
 }
-{% endhighlight %}
+```
 
 Since `Color` has h-exp and v-exp behavior, the `View/fixedSize()` modifier cannot figure out the intrinsic size it needs to apply, using 10 as fallback in both directions.
 
@@ -206,7 +206,7 @@ This process might seem cumbersome but is thankfully theoretical in most cases. 
 
 To speed up the process of identifying neutral behaviors, it might still be useful to document custom views in your code so that their behavior can be quickly guessed from their documentation, for example:
 
-{% highlight swift linenos %}
+```swift
 /// Intrinsic sizing behavior: h-exp, v-exp
 struct CalendarView: View {
     // ...
@@ -236,7 +236,7 @@ extension View {
         // ...
     }
 }
-{% endhighlight %}
+```
 
 ## Altering Sizing Behaviors
 
@@ -258,21 +258,21 @@ Fortunately `UIHostingController` provides a `sizeThatFits(in:)` method to calcu
 
 Note that if your SwiftUI layout depends on size classes you should inject the size class into the environment when calculating the size, so that the view you probe adopts the correct behavior:
 
-{% highlight swift linenos %}
+```swift
 extension View {
     func adaptiveSizeThatFits(in size: CGSize, for horizontalSizeClass: UIUserInterfaceSizeClass) -> CGSize {
         let hostController = UIHostingController(rootView: self.environment(\.horizontalSizeClass, UserInterfaceSizeClass(horizontalSizeClass)))
         return hostController.sizeThatFits(in: size)
     }
 }
-{% endhighlight %}
+```
 
 You can use `UIView.layoutFittingExpandedSize` to calculate the size required by some SwiftUI view. For example here is how you would calculate the height of `SomeView` constrained to 800px horizontally, for the regular size class:
 
-{% highlight swift linenos %}
+```swift
 let fittingSize = CGSize(width: 800, height: UIView.layoutFittingExpandedSize.height)
 let height = SomeView().adaptiveSizeThatFits(in: fittingSize, for: .regular).height
-{% endhighlight %}
+```
 
 If `SomeView` has hugging behavior the matching height is returned. If the view has expanding behavior, though, the returned height will be equal to the size offer `UIView.layoutFittingExpandedSize.height` instead.
 
@@ -281,7 +281,7 @@ If `SomeView` has hugging behavior the matching height is returned. If the view 
 
 Instead of the visual approach described [above](determining-the-intrinsic-sizing-behavior-of-a-biew) you can use `UIHostingController` and `sizeThatFits(in:)` to probe view sizing behavior. I like the visual approach better but here is a rough idea how you can check that a `VStack` has neutral behavior in all directions, using a Swift playground:
 
-{% highlight swift linenos %}
+```swift
 struct ComposedViewExpandingTest: View {
     var body: some View {
         VStack {
@@ -310,7 +310,7 @@ let huggingSize = ComposedViewHuggingTest().probedSize()
 
 let hNeutral = huggingSize.width != UIView.layoutFittingExpandedSize.width && expandingSize.width == UIView.layoutFittingExpandedSize.width
 let vNeutral = huggingSize.height != UIView.layoutFittingExpandedSize.height && expandingSize.height == UIView.layoutFittingExpandedSize.height
-{% endhighlight %}
+```
 
 ## UIViewRepresentable and UIViewControllerRepresentable
 
