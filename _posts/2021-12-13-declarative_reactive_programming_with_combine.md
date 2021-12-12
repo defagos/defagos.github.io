@@ -27,9 +27,9 @@ I am pretty confident that Combine is here to stay, especially considered its ti
 
 This article might also convince you that async/await and Combine are complementary rather than mutually exclusive. Combine is namely a reactive framework wih the concept  of [back pressure at its heart](https://developer.apple.com/documentation/combine/processing-published-elements-with-subscribers), while asyc/await and actors provide language constructs for [structured concurrency](https://gist.github.com/lattner/31ed37682ef1576b16bca1432ea9f782). Both approaches might address common concerns like avoiding concurrent access to mutable states or scalability, but in general they serve different purposes.
 
-A significant time I spend every week as an app developer involves writing or updating code that aggregates data from several sources. I found reactive programming and Combine to be invaluable tools for such tasks. It would certainly be possible to achieve the same results using other approaches but, as this article will hopefully illustrate, Combine provides a formalism with which the obtained code can be both expressive and scalable, where other approaches usually quickly lead to code which is hard to maintain. If I were to implement a database access layer or a cache, though, I would rather use actors instead, since safe access to a shared resource is more relevant in this case than reactiveness or backpressure. Different purposes, different tools.
+A significant time I spend every week as an app developer involves writing or updating code that aggregates data from several sources. I found reactive programming and Combine to be invaluable tools for such tasks. It would certainly be possible to achieve the same results using other approaches but, as this article will hopefully illustrate, Combine provides a formalism with which the obtained code can be both expressive and scalable, whereas other approaches usually quickly lead to code which is hard to maintain. If I were to implement a database access layer or a cache, though, I would rather use actors instead, since safe access to a shared resource is more relevant in this case than reactiveness or back pressure. Different purposes, different tools.
 
-Some might of course argue that Combine and reactive programming are not easy and that [compiler support is not always great](https://twitter.com/collindonnell/status/1446291171517468675), and they would certainly be right. But async/await and actors, or even GCD, are not easy either. Concurrency in general is a hard problem and it is only natural that approaches dealing with it have some learning curve, advantages and drawbacks. Just stay open-minded about which options are available and where they work best to pick the one that will help you write better code. We never had as many great options as we have nowadays, and it would be a shame not to use the one that works best in a specific case.
+Some people might of course argue that Combine and reactive programming are not easy and that [compiler support is not always great](https://twitter.com/collindonnell/status/1446291171517468675), and they would certainly be right. But async/await and actors, or even GCD, are not easy either. Concurrency in general is a hard problem and it is only natural that approaches dealing with it have some learning curve, advantages and drawbacks. Just stay open-minded about which options are available and where they work best to pick the one that will help you write better code. We never had as many great options as we have nowadays, and it would be a shame not to use the one that works best in a specific case.
 
 [^1]: As of Xcode 13.2 async/await are backward compatible with the same minimum OS versions as Combine.
 
@@ -45,8 +45,6 @@ func filesPublisher(inDirectoryAt: url: URL) -> AnyPublisher<[File], Error>
 func lifecycleEventPublisher() -> AnyPublisher<NSNotification, Never>
 ```
 
-Once you have Combine data emitters the task that remains to you as a programmer is to assemble them into pipelines delivering a consolidated result.
-
 ## Data Pipelines
 
 Once you have identified the data emitters you need you can connect them together, ultimately forming a tree-shaped structure describing the entire data delivery process. No matter how complex this tree can be, it can be seen as a _data pipeline_ assembling data from various emitters, transforming and consolidating it along the way, before delivering it to a single endpoint.
@@ -57,7 +55,7 @@ Combine provides a [rich toolset](https://heckj.github.io/swiftui-notes) to buil
 - Operators with which you can tweak the delivery process (`throttle`, `debounce`, etc.).
 - Operators which gather data before delivering it further (`scan`, `reduce`).
 - Publishers that aggregate other publishers (`Publishers.Merge`, `Publishers.Zip`, `Publishers.CombineLatest`).
-- And many more
+- And many more...
 
 Using publishers like `Publishers.Merge` or `Publishers.CombineLatest`, as well as combinations of operators like `map` and `switchToLatest`, a trunk is able to grow branches, which themselves can grow other branches and so forth, allowing you to create abritrarily complex data delivery trees, e.g. to consolidate data associated with a user id:
 
@@ -75,9 +73,9 @@ Some data emitters in a pipeline might deliver data in pages of results. Traditi
 - The results must be consolidated between the two pipelines, again via an external mutable state.
 - Cancellation must be properly coordinated. In our example, if a reload is triggered for the first pipeline while the secondary pipeline is still retrieving the next page of results, then both pipelines must likely be reset so that the overall state remains consistent. 
 
-To make things worse, and due to the usually concurrent nature of data retrieval, extra care is required when accessing these shared mutable states.
+This approach does not scale well, since more states need to be added and synchronized as the number of paginated emitters increases. To make things worse, and due to the usually concurrent nature of data retrieval, extra care is required when accessing all these shared mutable states.
 
-With the help of a few additions, though, Combine and reactive programming in general make it possible to eliminate such issues entirely. If we namely only keep the first pipeline describing the whole data delivery process (without pagination), we can directly build pagination into this pipeline if we are able to ask any publisher directly for more results when needed. 
+With the help of a few additions, though, reactive programming and Combine make it possible to eliminate these issues entirely. If we namely only keep the first pipeline describing the whole data delivery process (without pagination), we can directly build pagination into this pipeline if we are able to ask any publisher directly for more results when needed. Updated results will then flow through the usual pipeline and deliver a consolidated update consistently.
 
 For example, if the document and address publishers in the above example both support pagination, all we need to add pagination support is a way to contact these two data emitters directly when more data is required:
 
@@ -89,7 +87,7 @@ The idea of contacting a publisher directly can be neatly implemented using sign
 func networkReachableAgainSignal() -> AnyPublisher<Void, Never>
 ```
 
-A _trigger_, on the other hand, is a communication device with a set of associated signals, which it can contact on demand so that they emit a value. Being publishers, signals associated with a trigger can be inserted into any pipeline at design time to define control points which can be activated on-demand later on. 
+A _trigger_, on the other hand, is a communication device with a set of associated signals, which it can contact on-demand so that they emit a value. Being publishers, signals associated with a trigger can be inserted into any pipeline at design time to define control points which can be activated on-demand later on. 
 
 Implementing triggers and associated signals is straightforward:
 
@@ -206,10 +204,10 @@ func itemsPublisher(at page: Page?, paginatedBy paginator: Trigger.Signal?) -> A
 
 This implementation deserves a few words of explanation:
 
-- If a paginator has been provided and a next page is available we return the result immediately (`prepend`) and prepare the request for the subsequent page of results behind a `wait` (the pipeline must be read from the bottom to the top here). We also insert a `retry(.max)` so that, in the event a request fails, the trigger signal can be used to perform a new attempt.
+- If a paginator has been provided and a next page is available we return the result immediately (`prepend`) and recursively prepare the request for the subsequent page of results, whose delivery is controlled by a `wait` (the pipeline must be read from the bottom to the top here). We also insert a `retry(.max)` so that, in the event a request fails, the trigger can be used to perform new attempts.
 - Otherwise we just return the result we have and the publisher completes.
 
-The helper publisher can finally be used to implement the paginated item publisher we need, able to deliver pages on-demand and which can be inserted into any pipeline:
+This helper publisher can finally be used to implement the paginated item publisher we need, which can be inserted into any pipeline and controlled externally when more results are needed:
 
 ```swift
 func itemsPublisher(paginatedBy paginator: Trigger.Signal? = nil) -> AnyPublisher<[Item], Error> {
@@ -387,7 +385,7 @@ extension Publishers {
 }
 ```
 
-With the help of `Publishers.AccumulateLatestMany` we can now write a rows publisher for our Netflix-like homepage:
+With the help of `Publishers.AccumulateLatestMany` we can now write a publisher for our Netflix-like homepage:
 
 ```swift
 func rowsPublisher() -> AnyPublisher<[Row], Error> {
@@ -413,9 +411,9 @@ A good row value to use in both cases is a list of placeholder medias, or a list
 
 ## Advanced Pipeline Design
 
-With [triggers, signals](#triggers-and-signals), [refresh publishers](#refresh-publishers), [accumulators](#accumulators) and a recipe to implement [paginated publishers](#paginated-publishers), we can now write a single declarative pipeline for our Netflix-like homepage which not only aggregates medias in order, but also supports global reloads and pagination.
+With [triggers](#triggers-and-signals), [signals](#triggers-and-signals), [refresh publishers](#refresh-publishers), [accumulators](#accumulators) and a recipe to implement [paginated publishers](#paginated-publishers), we can now write a single declarative pipeline for our Netflix-like homepage which not only retrieves topics and their medias in order, but also supports global reloads and individual pagination per topic.
 
-Let us assume that media lists per topic support pagination. We can augment this API to support pagination via trigger and signals as described in the [Paginated Publishers](#paginated-publishers) section:
+Let us assume that media lists per topic support pagination. We can augment the API contract to support pagination via trigger and signals as described in the [Paginated Publishers](#paginated-publishers) section:
 
 ```swift
 func topics() -> AnyPublisher<[Topic], Error>
@@ -437,7 +435,7 @@ Also assume we have a trigger stored somewhere:[^2]
 let trigger = Trigger()
 ```
 
-We can now enhance our `rowsPublisher()` pipeline to add support for reloads and pagination in each section:
+We can now enhance our `rowsPublisher()` pipeline to add support for global reloads and pagination in each section:
 
 ```swift
 func rowsPublisher() -> AnyPublisher<[Row], Error> {
@@ -457,13 +455,13 @@ func rowsPublisher() -> AnyPublisher<[Row], Error> {
 }
 ```
 
-Only three changes were required in comparison to the pipeline originally obtained at the end of the [Accumulators](#accumulators) section:
+Only three changes were required in comparison to the pipeline we obtained at the end of the [Accumulators](#accumulators) section:
 
 - `Publishers.PublishAndRepeat` ensures the pipeline is executed once and repeated when a reload is triggered.
-- A signal is provided to `medias(forTopicId:paginatedBy:)` so that more medias can be loaded for any topic, independently and on-demand.
+- A paginator signal is provided to `medias(forTopicId:paginatedBy:)` so that more medias can be loaded for any topic, independently and on-demand.
 - `scan` is used to gather pages of medias returned by the paginated `medias(forTopicId:paginatedBy:)` publisher.
 
-We proceeded here like you would in practice, namely by starting with a basic pipeline implementing the nominal case, then inserting signals where appropriate to deliver more data or repeat part or the entirety of the pipeline. This approach is especially nice, as it allows a pipeline to be gradually enhanced with new features with surgical code changes. Think about the code you would have written if had to do the same with block-based APIs and you should understand the advantages of this approach.
+We proceeded here like you would in practice, namely by starting with a basic pipeline implementing the nominal case, then inserting signals where appropriate to deliver more data or repeat part or the entirety of the pipeline. This approach is especially nice, as it allows a pipeline to be gradually enhanced with surgical code changes. Think about the code you would have written if you had to do the same with block-based APIs and you will probably better understand the advantages of this approach.
 
 Even better, you can very easily throttle data delivery (e.g. to avoid signals triggering too many unnecessary reloads in part of the pipeline) or use debouncing to add some delay (e.g. if a signal is bound to keyboard input), with only a few additional operator insertions. This is an area where reactive programming really shines in comparison to more imperative approaches which would require much more convoluted code to be written.
 
@@ -473,7 +471,7 @@ Even better, you can very easily throttle data delivery (e.g. to avoid signals t
 
 Declarative data pipelines are especially useful when writing view models conforming to `ObservableObject`. Since pipelines deliver consolidated results they can be immediately wired to a published `state` property so that the view automatically reflects its changes. 
 
-For example our Netflix-like homepage could be driven by the following view model:
+For example our Netflix-like homepage could be driven by the following view model, which is based on our `rowsPublisher()` from the previous section, whose result is wrapped into a `State`:
 
 ```swift
 final class HomepageViewModel: ObservableObject {
@@ -528,7 +526,7 @@ final class HomepageViewModel: ObservableObject {
 }
 ```
 
-By assigning the publisher to the `state` property publisher using the `assign(to:)` operator, we bind the lifetime of our pipeline to the lifetime of the `state` property, and therefore to the `HomepageViewModel` instance itself. This ensures correct resource management without the need for cancellables. We also catch errors and replace them with a new publisher [so that the pipeline never finishes](https://heckj.github.io/swiftui-notes/#patterns-continual-error-handling), even in case of failure.
+By assigning the publisher to the `state` property publisher using the `assign(to:)` operator, we bind the lifetime of our pipeline to the lifetime of the `state` property and therefore to the `HomepageViewModel` instance itself. This ensures correct resource management without the need for explicit [cancellables](https://developer.apple.com/documentation/combine/anycancellable). We also catch errors and replace them with a new publisher [so that the pipeline never finishes](https://heckj.github.io/swiftui-notes/#patterns-continual-error-handling), even in case of failure.
 
 Here is a visual representation of the pipeline, with reloads and pagination indicated:
 
@@ -536,17 +534,15 @@ Here is a visual representation of the pipeline, with reloads and pagination ind
 
 Just take a deep breath and consider which features the above view model provides in ~50 lines of code:
 
-- The model delivers state updates in a reactive way, with loading and failure states handled.
-- It performs a request for topics and, for each topic, performs another request to gather medias associated with it.
+- The model delivers state updates in a reactive way, with loading and failure states, as well as a loaded state with the relevant content attached.
+- It performs a request for topics and, for each one, performs another request to gather medias associated with it.
 - It provides support for reloading, either in response to user interaction (e.g. pull-to-refresh) or in response to application environment changes.
 - More medias can be individually loaded for each topic (as the user scrolls, for example).
 - If a reload occurs while more medias are still being loaded for one or several rows, all pipelines are properly cancelled accordingly.
 
-All in a declarative manner. Pretty nifty, isn't it?
-
 ## Conclusion
 
-In this article we illustrated how reactive programming and Combine can be used to build data delivery pipelines in a declarative way. The strategies we elaborated are not only scalable, but also eliminate issues commonly associated with shared mutable states. This neatly avoid issues commonly encountered when aggregating several asynchronous data sources using imperative block-based or async/await-based approaches.
+In this article we illustrated how reactive programming and Combine can be used to build data delivery pipelines in a declarative way. The strategies we elaborated are not only scalable, but also eliminate challenges associated with shared mutable states. This neatly avoid issues commonly encountered when aggregating several asynchronous data sources using imperative block-based or async/await-based approaches.
 
 Key concepts we introduced are signals and triggers, which can be inserted as control points into any pipeline, as well as a `wait(untilOutputFrom:)` operator which can be used to implement publishers natively supporting signal-based pagination. We also introduced `Publishers.AccumulateLatestMany` to solve limitations of `Publishers.CombineLatest`, especially when an arbitrary number of publishers must deliver their results in a specific order.
 
@@ -560,4 +556,4 @@ Finally, and though this discussion was focused on reactive programming with Com
 
 ## Sample Code
 
-Sample code is provided [on GitHub](https://github.com/defagos/DeclarativeCombine). The Combine toolset built in this article is provided as a Swift package associated with the project, which implements a basic Netflix-like homepage as described in this article. The view model includes a few improvements, mostly to display placeholders while loading content or if a media list cannot be loaded for some reason.
+Sample code is provided [on GitHub](https://github.com/defagos/DeclarativeCombine). The Combine toolset built in this article is provided as a Swift package associated with the project, which implements a basic Netflix-like homepage as described in this article, and built using SwiftUI. The underlying view model includes a few improvements in comparison to the one discussed in this article, mostly to display placeholders while loading content or if a media list cannot be loaded for some reason.
