@@ -42,6 +42,34 @@ pre {
     padding: 10px;
 }
 
+table {
+    border: 1px solid white;
+    border-collapse: collapse;
+}
+
+td, th {
+    border: 1px dashed #b5e853;
+}
+
+code.highlighter-rouge { 
+    color: #b5e853; 
+}
+
+.highlight table {
+    border: 1px;
+    border-style: solid;
+    background-color: black;
+    margin: 0 0 0 0;
+}
+
+.highlight table td + td { 
+    border-left: 1px dashed #b5e853; 
+}
+
+.highlight td, th {
+    border-style: none;
+}
+
 header h1 {
     border-bottom: none;
 }
