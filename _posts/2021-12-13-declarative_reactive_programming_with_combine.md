@@ -212,7 +212,7 @@ This helper publisher can finally be used to implement the paginated item publis
 ```swift
 func itemsPublisher(paginatedBy paginator: Trigger.Signal? = nil) -> AnyPublisher<[Item], Error> {
     return itemsPublisher(at: nil, paginatedBy: paginator)
-        .map { $0.items }
+        .map(\.items)
         .eraseToAnyPublisher()
 }
 ```
