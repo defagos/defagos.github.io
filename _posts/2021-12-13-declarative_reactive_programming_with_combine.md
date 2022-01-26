@@ -526,7 +526,7 @@ final class HomepageViewModel: ObservableObject {
 }
 ```
 
-By assigning the publisher to the `state` property publisher using the `assign(to:)` operator, we bind the lifetime of our pipeline to the lifetime of the `state` property and therefore to the `HomepageViewModel` instance itself. This ensures correct resource management without the need for explicit [cancellables](https://developer.apple.com/documentation/combine/anycancellable). We also catch errors and replace them with a new publisher [so that the pipeline never finishes](https://heckj.github.io/swiftui-notes/#patterns-continual-error-handling), even in case of failure.
+By assigning the publisher to the `state` property publisher using the `assign(to:)` [operator](https://developer.apple.com/documentation/combine/fail/assign(to:)), we bind the lifetime of our pipeline to the lifetime of the `state` property and therefore to the `HomepageViewModel` instance itself. This ensures correct resource management without the need for explicit [cancellables](https://developer.apple.com/documentation/combine/anycancellable). We also catch errors and replace them with a new publisher [so that the pipeline never finishes](https://heckj.github.io/swiftui-notes/#patterns-continual-error-handling), even in case of failure.
 
 Here is a visual representation of the pipeline, with reloads and pagination indicated:
 
@@ -540,19 +540,183 @@ Just take a deep breath and consider which features the above view model provide
 - More medias can be individually loaded for each topic (as the user scrolls, for example).
 - If a reload occurs while more medias are still being loaded for one or several rows, all pipelines are properly cancelled accordingly.
 
+#### Remark
+{:.no_toc}
+
+There is no way to cancel subscriptions made with the `assign(to:)` operator since no `AnyCancellable` is returned. This means that associated subscriptions remain valid until the parent `ObservableObject` is deinitialized.
+
+Also note that calling `assign(to:)` several times on the same published property does not replace existing subscriptions. New subscriptions will pile up instead, which is why you should avoid code that calls `assign(to:)` unnecessarily.
+
+For these reasons declaring a reactive pipeline from a designated intializer is a good practice, especially when this pipeline is wired to a published property using `assign(to:)`.
+
+Sometimes a pipeline might depend on parameters supplied by the user, though, for example a search criterium or a username and password pair. Such parameters are not known at initialization time and you might wonder how their updated values can be provided to an existing pipeline. The next section will show you how this can be achieved.
+
+## User-driven Data Emitters
+
+Assume our example webservice provides an additional endpoint to search medias using some query and additional settings. We introduce a corresponding data emitter:
+
+```swift
+func medias(matchingQuery query: String, settings: Settings) -> AnyPublisher<[Media], Error>
+```
+
+with settings letting the user pick a date range or a sort order, for example:
+
+```swift
+struct Setting {
+    let dateRange: DateRange?
+    let ascending: Bool
+    // ...
+}
+```
+
+In most scenarios the above emitter would likely support pagination as described in the [Paginated Publishers](#paginated-publishers) section, but this is left as an exercise for the reader. As usual the details of the data emitter implementation are not important, only its signature is.
+
+Similar to what we did in the [previous section](#declarative-data-pipelines-and-view-models) we can now implement the view model of a basic search screen. This view model must support query and setting updates made by the user. We declare a pipeline in the view model initializer, starting our implementation with constant query and settings:
+
+```swift
+final class SearchViewModel: ObservableObject {
+    enum State {
+        case loading
+        case loaded(medias: [Media])
+        case failure(error: Error)
+    }
+
+    let query = ""
+    let settings = Settings()
+
+    @Published private(set) var state: State = .loading
+    
+    init() {
+        Publishers.PublishAndRepeat(onOutputFrom: consolidatedReloadSignal()) { [query, settings] in
+            return medias(matchingQuery: query, settings: settings)
+                .map { State.loaded(medias: $0) }
+                .catch { error in
+                    return Just(State.failure(error: error))
+                }
+                .eraseToAnyPublisher()
+        }
+        .receive(on: DispatchQueue.main)
+        .assign(to: &$state)
+    }
+
+    // ...
+}
+```
+
+We implement pull-to-refresh and respond to the application being woken up by using the same `consolidatedReloadSignal()` signal introduced in the previous section (details are therefore omitted here). Note that the use of `Publishers.PublishAndRepeat(onOutputFrom:)` requires the query and settings to be accessible within the associated closure, which is here achieved through a capture list.
+
+The query and settings must support updates made by the user, but simply turning associated properties into `var`s does not work:
+
+- Since `String` and `Settings` are value types, their _initial_ value is captured. Updates will never be visible in the closure.
+- There is no way to reload the pipeline in response to these values being _changed_.
+
+The need to respond to change is a hint about how we can solve both problems. Instead of simple mutable properties, let us namely introduce `@Published` properties:
+
+```swift
+final class SearchViewModel: ObservableObject {
+    // ...
+
+    @Published var query = ""
+    @Published var settings = Settings()
+
+    // ...
+}
+```
+
+The publishers associated with these properties can now be captured and inserted into the pipeline so that search results are updated when the query or settings change:
+
+```swift
+final class SearchViewModel: ObservableObject {
+    enum State {
+        case loading
+        case loaded(medias: [Media])
+        case failure(error: Error)
+    }
+
+    @Published var query = ""
+    @Published var settings = Settings()
+
+    @Published private(set) var state: State = .loading
+    
+    init() {
+        Publishers.PublishAndRepeat(onOutputFrom: consolidatedReloadSignal()) { [$query, $settings] in
+            Publishers.CombineLatest($query, $settings)
+                .map { query, settings in
+                    return medias(matchingQuery: query, settings: settings)
+                }
+                .switchToLatest()
+                .map { State.loaded(medias: $0) }
+                .prepend(State.loading)
+                .catch { error in
+                    return Just(State.failure(error: error))
+                }
+                .eraseToAnyPublisher()
+        }
+        .receive(on: DispatchQueue.main)
+        .assign(to: &$state)
+    }
+
+    // ...
+}
+```
+
+The above code deserves a brief explanation:
+
+- Query and setting publishers are assembled using `Publishers.CombineLatest` so that any update received from them triggers a new search. Note that `Publishers.CombineLatest` [requires each involved publisher to emit a value before emitting its first value](https://developer.apple.com/documentation/combine/just/combinelatest(_:)), which is here guaranteed since `@Published` publishers provide their initial value automatically upon subscription. The pipeline therefore always executes once.
+-  A usual `map` and `switchToLatest` [combination](https://heckj.github.io/swiftui-notes/#reference-switchtolatest) is used to produce a single request matching the latest search parameters, ensuring prior requests are properly discarded.
+- The `prepend` operator is used to reset the state to `State.loading` before each new search attempt.
+
+As usual we can easily tweak this pipeline further, for example to avoid performing a new request if the query did not change, or to ensure requests are not immediately sent while the user is still typing or updating search settings:
+
+```swift
+final class SearchViewModel: ObservableObject {
+    enum State {
+        case loading
+        case loaded(medias: [Media])
+        case failure(error: Error)
+    }
+
+    @Published var query = ""
+    @Published var settings = Settings()
+
+    @Published private(set) var state: State = .loading
+    
+    init() {
+        Publishers.PublishAndRepeat(onOutputFrom: consolidatedReloadSignal()) { [$query, $settings] in
+            Publishers.CombineLatest($query.removeDuplicates(), $settings)
+                .debounce(for: 0.3, scheduler: DispatchQueue.main)
+                .map { query, settings in
+                    return medias(matchingQuery: query, settings: settings)
+                }
+                .switchToLatest()
+                .map { State.loaded(medias: $0) }
+                .prepend(State.loading)
+                .catch { error in
+                    return Just(State.failure(error: error))
+                }
+                .eraseToAnyPublisher()
+        }
+        .receive(on: DispatchQueue.main)
+        .assign(to: &$state)
+    }
+
+    // ...
+}
+```
+
 ## Conclusion
 
 In this article we illustrated how reactive programming and Combine can be used to build data delivery pipelines in a declarative way. The strategies we elaborated are not only scalable, but also eliminate challenges associated with shared mutable states. This neatly avoid issues commonly encountered when aggregating several asynchronous data sources using imperative block-based or async/await-based approaches.
 
 Key concepts we introduced are signals and triggers, which can be inserted as control points into any pipeline, as well as a `wait(untilOutputFrom:)` operator which can be used to implement publishers natively supporting signal-based pagination. We also introduced `Publishers.AccumulateLatestMany` to solve limitations of `Publishers.CombineLatest`, especially when an arbitrary number of publishers must deliver their results in a specific order.
 
-Finally, we applied this declarative formalism to view model building, opening the door to implementations where view and view models are built declaratively.[^3] Exactly like a SwiftUI `View` is a view recipe, focusing on the desired result rather than on its actual implementation, a declarative pipeline is namely a data delivery recipe and as such is a perfect fit for view models.
+Finally, we applied this declarative formalism to view model building, opening the door to implementations where view and view models are built declaratively.[^4] Exactly like a SwiftUI `View` is a view recipe, focusing on the desired result rather than on its actual implementation, a declarative pipeline is namely a data delivery recipe and as such is a perfect fit for view models.
 
 The approach discussed in this article has of course a few drawbacks. Combine and reactive programming have a steep learning curve, and compiler messages might be cryptic, though experience definitely helps. Pipeline design also requires special care, as it can be quite surgical. There is definitely an entry fee involved, but hopefully this article helped you realize the return might be worth the investment.
 
 Finally, and though this discussion was focused on reactive programming with Combine, all the concepts introduced in this article could likely be transposed to any other declarative framework. For this reason I hope this article can be insightful outside Apple or Swift development communities as well, or useful to people using reactive frameworks like ReactiveSwift or RxSwift.
 
-[^3]: SwiftUI or UIKit diffable data sources and compositional layouts, for example, nicely support this philosophy.
+[^4]: SwiftUI or UIKit diffable data sources and compositional layouts, for example, nicely support this philosophy.
 
 ## Sample Code
 
