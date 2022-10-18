@@ -347,7 +347,7 @@ extension Publishers {
         return AccumulateLatestMany(publishers)
     }
     
-    static func AccumulateLatestMany<S, Output, Failure>(_ publishers: S) -> AnyPublisher<[O utput], Failure> where S: Swift.Sequence, S.Element == AnyPublisher<Output, Failure> {
+    static func AccumulateLatestMany<S, Output, Failure>(_ publishers: S) -> AnyPublisher<[Output], Failure> where S: Swift.Sequence, S.Element == AnyPublisher<Output, Failure> {
         let publishersArray = Array(publishers)
         switch publishersArray.count {
         case 0:
