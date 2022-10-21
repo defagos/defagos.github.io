@@ -343,16 +343,16 @@ With simple bissection, though, we can implement a `Publishers.AccumulateLatestM
 
 ```swift
 extension Publishers {
-    static func AccumulateLatestMany<Output, Failure>(_ publishers: AnyPublisher<Output, Failure>...) -> AnyPublisher<[Output], Failure> {
+    static func AccumulateLatestMany<Upstream>(_ publishers: Upstream...) -> AnyPublisher<[Upstream.Output], Upstream.Failure> where Upstream: Publisher {
         return AccumulateLatestMany(publishers)
     }
     
-    static func AccumulateLatestMany<S, Output, Failure>(_ publishers: S) -> AnyPublisher<[Output], Failure> where S: Swift.Sequence, S.Element == AnyPublisher<Output, Failure> {
+    static func AccumulateLatestMany<Upstream, S>(_ publishers: S) -> AnyPublisher<[Upstream.Output], Upstream.Failure> where Upstream: Publisher, S: Swift.Sequence, S.Element == Upstream {
         let publishersArray = Array(publishers)
         switch publishersArray.count {
         case 0:
             return Just([])
-                .setFailureType(to: Failure.self)
+                .setFailureType(to: Upstream.Failure.self)
                 .eraseToAnyPublisher()
         case 1:
             return publishersArray[0]
@@ -394,7 +394,6 @@ func rowsPublisher() -> AnyPublisher<[Row], Error> {
             return Publishers.AccumulateLatestMany(topics.map { topic in
                 return medias(forTopicId: topic.id)
                     .map { Row(topic: topic, medias: $0) }
-                    .eraseToAnyPublisher()
             })
         }
         .switchToLatest()
@@ -446,7 +445,6 @@ func rowsPublisher() -> AnyPublisher<[Row], Error> {
                     return medias(forTopicId: topic.id, paginatedBy: TriggerId.loadMore(topicId: topic.id))
                         .scan([]) { $0 + $1 }
                         .map { Row(topic: topic, medias: $0) }
-                        .eraseToAnyPublisher()
                 })
             }
             .switchToLatest()
@@ -493,7 +491,6 @@ final class HomepageViewModel: ObservableObject {
                         return medias(forTopicId: topic.id, paginatedBy: TriggerId.loadMore(topicId: topic.id))
                             .scan([]) { $0 + $1 }
                             .map { Row(topic: topic, medias: $0) }
-                            .eraseToAnyPublisher()
                     })
                 }
                 .switchToLatest()
